@@ -19,3 +19,6 @@ npm-debug.log*
 # Environment
 .env
 .env.local
+
+# Original (pre-transparency) PNG backup — local only
+assets/codi-original/
