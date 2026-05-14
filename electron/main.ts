@@ -54,28 +54,30 @@ ipcMain.on('app:quit', () => {
 	app.quit();
 });
 
-// Move the pet window to an absolute screen X coordinate.
-// Y is locked to the bottom row so Codi always walks on the floor.
-ipcMain.on('pet:set-x', (_event, x: number) => {
+// Move the pet window to an absolute screen position.
+// Renderer owns all coordinate policy (floor lock for walking, free Y for drag).
+ipcMain.on('pet:set-position', (_event, x: number, y: number) => {
 	if (!petWindow) return;
-	const { height: sh } = screen.getPrimaryDisplay().workAreaSize;
-	const y = sh - PET_SIZE - BOTTOM_OFFSET;
-	petWindow.setPosition(Math.round(x), y);
+	petWindow.setPosition(Math.round(x), Math.round(y));
 });
 
-// Return the current window X plus screen geometry so the renderer can plan
+// Return current window position plus screen geometry so the renderer can plan
 // both the wide walk loop (initial) and the local walk loop (after drag).
 ipcMain.handle('pet:get-state', () => {
 	if (!petWindow) {
 		return null;
 	}
-	const [x] = petWindow.getPosition();
-	const { width: sw } = screen.getPrimaryDisplay().workAreaSize;
+	const [x, y] = petWindow.getPosition();
+	const { width: sw, height: sh } = screen.getPrimaryDisplay().workAreaSize;
+	const floorY = sh - PET_SIZE - BOTTOM_OFFSET;
 	return {
 		x,
+		y,
 		screenWidth: sw,
+		screenHeight: sh,
 		petSize: PET_SIZE,
 		walkMarginRatio: WALK_MARGIN_RATIO,
+		floorY,
 	};
 });
 

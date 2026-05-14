@@ -2,14 +2,17 @@
 
 export interface PetState {
 	x: number;
+	y: number;
 	screenWidth: number;
+	screenHeight: number;
 	petSize: number;
 	walkMarginRatio: number;
+	floorY: number;
 }
 
 export interface ElectronAPI {
 	quitApp: () => void;
-	setX: (x: number) => void;
+	setPosition: (x: number, y: number) => void;
 	getState: () => Promise<PetState | null>;
 }
 

@@ -2,7 +2,7 @@ import { contextBridge, ipcRenderer } from 'electron';
 
 contextBridge.exposeInMainWorld('electronAPI', {
 	quitApp: () => ipcRenderer.send('app:quit'),
-	setX: (x: number) => ipcRenderer.send('pet:set-x', x),
+	setPosition: (x: number, y: number) => ipcRenderer.send('pet:set-position', x, y),
 	getState: () => ipcRenderer.invoke('pet:get-state'),
 });
 

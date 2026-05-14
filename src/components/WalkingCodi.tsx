@@ -16,8 +16,12 @@ const LOCAL_WALK_DURATION_MS = 4000;
 
 const MOVE_TICK_MS = 33;
 
+// Falling physics. Tuned so a 600px fall lands in roughly 1.5s.
+const GRAVITY_PX_PER_S2 = 1600;
+const MAX_FALL_SPEED_PX_PER_S = 1400;
+
 type Direction = 1 | -1;
-type WalkMode = 'wide' | 'local';
+type WalkMode = 'wide' | 'local' | 'falling';
 
 const WalkingCodi = () => {
 	const [frame, setFrame] = useState(0);
@@ -25,16 +29,23 @@ const WalkingCodi = () => {
 
 	// Walk loop state held in refs to avoid re-rendering on every tick.
 	const centerXRef = useRef<number | null>(null);
+	// Current Y of the window. Walking keeps this constant; dragging updates it.
+	const currentYRef = useRef<number | null>(null);
+	// Floor Y reported by main — the row where Codi can walk.
+	const floorYRef = useRef<number | null>(null);
 	const halfWidthRef = useRef(0);
 	const durationRef = useRef(WIDE_WALK_DURATION_MS);
 	const progressRef = useRef(0.5); // 0..1, where 0.5 is dead center
 	const directionRef = useRef<Direction>(1);
 	const lastTickRef = useRef(performance.now());
 	const modeRef = useRef<WalkMode>('wide');
+	// Vertical velocity used only while in 'falling' mode.
+	const fallVelocityRef = useRef(0);
 
 	// Drag state
 	const draggingRef = useRef(false);
-	const dragOffsetRef = useRef(0);
+	const dragOffsetXRef = useRef(0);
+	const dragOffsetYRef = useRef(0);
 
 	// Initialize walk parameters from the main process.
 	useEffect(() => {
@@ -43,6 +54,8 @@ const WalkingCodi = () => {
 			if (cancelled || !state) return;
 			const walkWidth = state.screenWidth * (1 - 2 * state.walkMarginRatio);
 			centerXRef.current = state.screenWidth / 2 - state.petSize / 2;
+			currentYRef.current = state.floorY;
+			floorYRef.current = state.floorY;
 			halfWidthRef.current = walkWidth / 2;
 			durationRef.current = WIDE_WALK_DURATION_MS;
 		});
@@ -65,24 +78,49 @@ const WalkingCodi = () => {
 
 		const tick = (now: number) => {
 			const dt = now - lastTickRef.current;
-			if (dt >= MOVE_TICK_MS && !draggingRef.current && centerXRef.current !== null) {
-				const delta = (dt / durationRef.current) * directionRef.current;
-				let next = progressRef.current + delta;
+			if (
+				dt >= MOVE_TICK_MS &&
+				!draggingRef.current &&
+				centerXRef.current !== null &&
+				currentYRef.current !== null &&
+				floorYRef.current !== null
+			) {
+				if (modeRef.current === 'falling') {
+					// Gravity-driven descent. X stays put while Codi falls.
+					const dtSec = dt / 1000;
+					fallVelocityRef.current = Math.min(
+						fallVelocityRef.current + GRAVITY_PX_PER_S2 * dtSec,
+						MAX_FALL_SPEED_PX_PER_S
+					);
+					let newY = currentYRef.current + fallVelocityRef.current * dtSec;
+					if (newY >= floorYRef.current) {
+						newY = floorYRef.current;
+						modeRef.current = 'local';
+						fallVelocityRef.current = 0;
+						progressRef.current = 0.5;
+					}
+					currentYRef.current = newY;
+					window.electronAPI.setPosition(centerXRef.current, newY);
+				} else {
+					// 'wide' or 'local' — horizontal back-and-forth at fixed Y.
+					const delta = (dt / durationRef.current) * directionRef.current;
+					let next = progressRef.current + delta;
 
-				if (next >= 1) {
-					next = 1;
-					directionRef.current = -1;
-					setDirection(-1);
-				} else if (next <= 0) {
-					next = 0;
-					directionRef.current = 1;
-					setDirection(1);
+					if (next >= 1) {
+						next = 1;
+						directionRef.current = -1;
+						setDirection(-1);
+					} else if (next <= 0) {
+						next = 0;
+						directionRef.current = 1;
+						setDirection(1);
+					}
+
+					progressRef.current = next;
+					const offset = (next - 0.5) * 2 * halfWidthRef.current;
+					const x = centerXRef.current + offset;
+					window.electronAPI.setPosition(x, currentYRef.current);
 				}
-
-				progressRef.current = next;
-				const offset = (next - 0.5) * 2 * halfWidthRef.current;
-				const x = centerXRef.current + offset;
-				window.electronAPI.setX(x);
 				lastTickRef.current = now;
 			}
 			rafId = requestAnimationFrame(tick);
@@ -99,30 +137,35 @@ const WalkingCodi = () => {
 		if (!state) return;
 		draggingRef.current = true;
 		// Remember where in the window the cursor grabbed Codi, so the window
-		// follows the cursor without jumping.
-		dragOffsetRef.current = e.screenX - state.x;
+		// follows the cursor without jumping on either axis.
+		dragOffsetXRef.current = e.screenX - state.x;
+		dragOffsetYRef.current = e.screenY - state.y;
 	};
 
 	useEffect(() => {
 		const handleMouseMove = (e: MouseEvent) => {
 			if (!draggingRef.current) return;
-			const newX = e.screenX - dragOffsetRef.current;
-			window.electronAPI.setX(newX);
+			const newX = e.screenX - dragOffsetXRef.current;
+			const newY = e.screenY - dragOffsetYRef.current;
+			window.electronAPI.setPosition(newX, newY);
 		};
 
 		const handleMouseUp = async (e: MouseEvent) => {
 			if (!draggingRef.current) return;
 			draggingRef.current = false;
-			// Re-read the final window position from main and switch to local mode.
 			const state = await window.electronAPI.getState();
 			if (!state) return;
 			centerXRef.current = state.x;
+			currentYRef.current = state.y;
+			floorYRef.current = state.floorY;
 			halfWidthRef.current = LOCAL_HALF_WIDTH;
 			durationRef.current = LOCAL_WALK_DURATION_MS;
-			progressRef.current = 0.5; // start walking outward from the drop point
-			modeRef.current = 'local';
+			progressRef.current = 0.5;
 			lastTickRef.current = performance.now();
-			// Suppress unused-warning while keeping the event reference clean.
+			fallVelocityRef.current = 0;
+			// If dropped above the floor, fall under gravity before resuming walking.
+			// A small tolerance avoids triggering falling for sub-pixel drift.
+			modeRef.current = state.y < state.floorY - 2 ? 'falling' : 'local';
 			void e;
 		};
 
