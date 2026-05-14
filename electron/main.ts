@@ -176,9 +176,17 @@ app.whenReady().then(() => {
 			petWindow.webContents.send('pet:notify', payload);
 		}
 	};
+	const sendAiActivity = (timestampMs: number) => {
+		if (petWindow && !petWindow.isDestroyed()) {
+			petWindow.webContents.send('pet:ai-activity', timestampMs);
+		}
+	};
 
 	stopNotifyServer = startNotifyServer(sendNotice);
-	stopClaudeWatcher = startClaudeWatcher(() => sendNotice({ source: 'claude' }));
+	stopClaudeWatcher = startClaudeWatcher({
+		onNotify: () => sendNotice({ source: 'claude' }),
+		onActivity: sendAiActivity,
+	});
 
 	app.on('activate', () => {
 		if (BrowserWindow.getAllWindows().length === 0) {

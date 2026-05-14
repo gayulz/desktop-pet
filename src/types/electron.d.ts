@@ -51,6 +51,7 @@ export interface ElectronAPI {
 	onActiveWindowTick: (listener: (info: ActiveWindowInfo) => void) => () => void;
 	onGitCommit: (listener: (e: GitCommitEvent) => void) => () => void;
 	onNotify: (listener: (p: NotifyPayload) => void) => () => void;
+	onAiActivity: (listener: (timestampMs: number) => void) => () => void;
 	showContextMenu: (codingActive: boolean, aiModeActive: boolean) => Promise<ContextMenuResult>;
 	openScreenRecordingPrefs: () => void;
 }

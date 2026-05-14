@@ -30,6 +30,7 @@ const PetController = () => {
 	const activeWindowTitleRef = useRef('');
 	const lastCommitAtMsRef = useRef<number | null>(null);
 	const noticeActiveRef = useRef(false);
+	const lastAiActivityAtMsRef = useRef<number | null>(null);
 
 	const { direction, turning, onMouseDown } = useWindowMotion(state);
 
@@ -48,6 +49,7 @@ const PetController = () => {
 				activeWindowTitle: activeWindowTitleRef.current,
 				lastCommitAtMs: lastCommitAtMsRef.current,
 				noticeActive: noticeActiveRef.current,
+				lastAiActivityAtMs: lastAiActivityAtMsRef.current,
 				nowMs: Date.now(),
 			});
 			setState((prev) => (prev === next ? prev : next));
@@ -75,12 +77,22 @@ const PetController = () => {
 			noticeActiveRef.current = true;
 			recompute();
 		});
+		const offAi = window.electronAPI.onAiActivity((timestampMs) => {
+			lastAiActivityAtMsRef.current = timestampMs;
+			recompute();
+		});
+
+		// Tick periodically so ai_mode automatically expires after its window
+		// without waiting for the next metrics push.
+		const aiExpiryTick = setInterval(recompute, 30 * 1000);
 
 		return () => {
 			offMetrics();
 			offActive();
 			offGit();
 			offNotify();
+			offAi();
+			clearInterval(aiExpiryTick);
 		};
 	}, []);
 
@@ -95,6 +107,7 @@ const PetController = () => {
 				activeWindowTitle: activeWindowTitleRef.current,
 				lastCommitAtMs: lastCommitAtMsRef.current,
 				noticeActive: noticeActiveRef.current,
+				lastAiActivityAtMs: lastAiActivityAtMsRef.current,
 				nowMs: Date.now(),
 			})
 		);

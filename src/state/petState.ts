@@ -2,17 +2,18 @@
  * Pet state machine — pure functions only.
  *
  * Priority (highest first):
- *   1. manualOverride        — explicit user toggle (coding mode)
+ *   1. manualOverride        — explicit user toggle (coding / ai_mode)
  *   2. notice                — external trigger (HTTP API or Claude file watch)
  *                              that needs the user's attention; persists until
  *                              the user clicks Codi to dismiss
  *   3. celebrating           — within CELEBRATE_DURATION_MS of a git commit
  *   4. overheated            — CPU sustained over the threshold
- *   5. studying              — active window title contains a study keyword
- *   6. coding                — active app is an editor/terminal AND user is active
- *   7. sleeping              — no input for SLEEP_AFTER_SEC
- *   8. walking (grace/idle<) — startup grace OR recent input
- *   9. idle                  — quiet but awake
+ *   5. ai_mode (auto)        — recent ~/.claude/ jsonl activity within window
+ *   6. studying              — active window title contains a study keyword
+ *   7. coding                — active app is an editor/terminal AND user is active
+ *   8. sleeping              — no input for SLEEP_AFTER_SEC
+ *   9. walking (grace/idle<) — startup grace OR recent input
+ *  10. idle                  — quiet but awake
  */
 
 import type { AppCategory } from '../types/electron';
@@ -39,6 +40,8 @@ export interface PetContext {
 	lastCommitAtMs: number | null;
 	// True while an external notice has been raised and not yet dismissed.
 	noticeActive: boolean;
+	// Timestamp the last ~/.claude/ jsonl activity landed.
+	lastAiActivityAtMs: number | null;
 	// Current time, injected so deriveState stays pure and testable.
 	nowMs: number;
 }
@@ -52,6 +55,9 @@ export const STARTUP_WALK_GRACE_SEC = 20;
 export const CODING_IDLE_THRESHOLD_SEC = 60;
 // celebrating window after a commit lands.
 export const CELEBRATE_DURATION_MS = 3000;
+// ai_mode window — Codi stays in the wizard pose this long after the last
+// ~/.claude/ jsonl change. Tuned to "Claude is still working on something".
+export const AI_ACTIVITY_WINDOW_MS = 5 * 60 * 1000;
 
 // Title-based study detection. Matches learning platforms broadly so YouTube
 // tutorials, Coursera, Udemy etc. count as studying too — not just Inflearn.
@@ -79,6 +85,12 @@ export function deriveState(ctx: PetContext): PetState {
 		return 'celebrating';
 	}
 	if (ctx.cpuLoad > OVERHEATED_CPU_THRESHOLD) return 'overheated';
+	if (
+		ctx.lastAiActivityAtMs !== null &&
+		ctx.nowMs - ctx.lastAiActivityAtMs < AI_ACTIVITY_WINDOW_MS
+	) {
+		return 'ai_mode';
+	}
 	if (isStudying(ctx.activeWindowTitle, ctx.activeAppCategory)) return 'studying';
 	if (isCoding(ctx.activeAppCategory, ctx.systemIdleSec)) return 'coding';
 	if (ctx.systemIdleSec > SLEEP_AFTER_SEC) return 'sleeping';

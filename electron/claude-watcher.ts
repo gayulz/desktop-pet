@@ -1,7 +1,11 @@
-// Watches ~/.claude/projects/ for jsonl mutations and emits a notice signal
-// when Claude Code writes a new line. This is intentionally crude — we treat
-// every appended line as "something happened", and trust the user to dismiss
-// notice events that aren't actually requests.
+// Watches ~/.claude/projects/ for jsonl mutations and emits TWO signals:
+//
+//   - `onNotify`: fires on each (debounced) change. Used for the "look at me"
+//     notice sprite so the user sees the alert immediately.
+//   - `onActivity`: also fires on each change but provides a timestamp.
+//     PetController keeps Codi in ai_mode for AI_ACTIVITY_WINDOW_MS after the
+//     last activity; the wizard hat naturally goes away when Claude stops
+//     working.
 //
 // The directory may not exist on machines that never ran Claude Code; in that
 // case the watcher silently no-ops.
@@ -13,9 +17,12 @@ import chokidar from 'chokidar';
 
 const CLAUDE_PROJECTS_DIR = path.join(os.homedir(), '.claude', 'projects');
 
-export type ClaudeActivityListener = () => void;
+export interface ClaudeWatcherCallbacks {
+	onNotify: () => void;
+	onActivity: (timestampMs: number) => void;
+}
 
-export function startClaudeWatcher(listener: ClaudeActivityListener): () => void {
+export function startClaudeWatcher(cb: ClaudeWatcherCallbacks): () => void {
 	if (!fs.existsSync(CLAUDE_PROJECTS_DIR)) {
 		console.warn(`[claude-watcher] ${CLAUDE_PROJECTS_DIR} not found; Claude notifications disabled`);
 		return () => {};
@@ -28,14 +35,15 @@ export function startClaudeWatcher(listener: ClaudeActivityListener): () => void
 		awaitWriteFinish: { stabilityThreshold: 800, pollInterval: 100 },
 	});
 
-	let lastFireMs = 0;
+	let lastNotifyMs = 0;
 	const fire = () => {
 		const now = Date.now();
-		// Coalesce bursts within 2 seconds — a single assistant turn often
-		// triggers multiple file-change events.
-		if (now - lastFireMs < 2000) return;
-		lastFireMs = now;
-		listener();
+		// Activity always fires — it's the heartbeat for ai_mode.
+		cb.onActivity(now);
+		// Notice is rate-limited: only one alert per ~2-second burst.
+		if (now - lastNotifyMs < 2000) return;
+		lastNotifyMs = now;
+		cb.onNotify();
 	};
 
 	watcher.on('add', fire);

@@ -51,6 +51,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
 		ipcRenderer.on('pet:notify', wrapped);
 		return () => ipcRenderer.removeListener('pet:notify', wrapped);
 	},
+	onAiActivity: (listener: (timestampMs: number) => void) => {
+		const wrapped = (_e: IpcRendererEvent, ts: number) => listener(ts);
+		ipcRenderer.on('pet:ai-activity', wrapped);
+		return () => ipcRenderer.removeListener('pet:ai-activity', wrapped);
+	},
 	showContextMenu: (
 		codingActive: boolean,
 		aiModeActive: boolean
