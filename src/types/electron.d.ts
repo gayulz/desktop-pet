@@ -52,6 +52,14 @@ export interface ElectronAPI {
 	onGitCommit: (listener: (e: GitCommitEvent) => void) => () => void;
 	onNotify: (listener: (p: NotifyPayload) => void) => () => void;
 	onAiActivity: (listener: (timestampMs: number) => void) => () => void;
+	onTrayAction: (
+		listener: (action: 'toggle-coding' | 'toggle-ai-mode') => void
+	) => () => void;
+	reportState: (state: {
+		codingActive?: boolean;
+		aiModeActive?: boolean;
+		petVisible?: boolean;
+	}) => void;
 	showContextMenu: (codingActive: boolean, aiModeActive: boolean) => Promise<ContextMenuResult>;
 	openScreenRecordingPrefs: () => void;
 }

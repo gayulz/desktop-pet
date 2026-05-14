@@ -86,12 +86,23 @@ const PetController = () => {
 		// without waiting for the next metrics push.
 		const aiExpiryTick = setInterval(recompute, 30 * 1000);
 
+		// Tray menu items dispatch back into the controller through the same
+		// applyOverride path the context menu uses.
+		const offTray = window.electronAPI.onTrayAction((action) => {
+			if (action === 'toggle-coding') {
+				applyOverride(manualOverrideRef.current === 'coding' ? null : 'coding');
+			} else if (action === 'toggle-ai-mode') {
+				applyOverride(manualOverrideRef.current === 'ai_mode' ? null : 'ai_mode');
+			}
+		});
+
 		return () => {
 			offMetrics();
 			offActive();
 			offGit();
 			offNotify();
 			offAi();
+			offTray();
 			clearInterval(aiExpiryTick);
 		};
 	}, []);
@@ -114,9 +125,12 @@ const PetController = () => {
 	};
 
 	const applyOverride = (mode: 'coding' | 'ai_mode' | null) => {
-		setCodingActive(mode === 'coding');
-		setAiModeActive(mode === 'ai_mode');
+		const coding = mode === 'coding';
+		const ai = mode === 'ai_mode';
+		setCodingActive(coding);
+		setAiModeActive(ai);
 		manualOverrideRef.current = mode;
+		window.electronAPI.reportState({ codingActive: coding, aiModeActive: ai });
 		recomputeNow();
 	};
 

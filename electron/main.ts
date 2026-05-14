@@ -5,6 +5,15 @@ import { startActiveWindowPoller } from './active-window';
 import { startGitWatcher } from './git-watcher';
 import { startNotifyServer, type NotifyPayload } from './notify-server';
 import { startClaudeWatcher } from './claude-watcher';
+import {
+	createTray,
+	destroyTray,
+	refreshTrayMenu,
+	getTrayIconPath,
+	applyWindowVisibility,
+	type TrayCallbacks,
+	type TrayState,
+} from './tray';
 
 const isDev = !app.isPackaged;
 let petWindow: BrowserWindow | null = null;
@@ -13,6 +22,14 @@ let stopActiveWindow: (() => void) | null = null;
 let stopGitWatcher: (() => void) | null = null;
 let stopNotifyServer: (() => void) | null = null;
 let stopClaudeWatcher: (() => void) | null = null;
+
+// Authoritative tray-level state. The renderer keeps its own copy but reports
+// changes back so the tray menu can mirror it.
+const trayState: TrayState = {
+	codingActive: false,
+	aiModeActive: false,
+	petVisible: true,
+};
 
 const PET_SIZE = 220;
 // Walk range: 60% of screen width, centered horizontally.
@@ -119,6 +136,13 @@ ipcMain.on('pet:open-screen-recording-prefs', () => {
 	shell.openExternal('x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture');
 });
 
+// Renderer reports manual override changes so the tray menu labels stay
+// in sync ("코딩 모드 시작" ↔ "코딩 모드 종료").
+ipcMain.on('pet:state-update', (_event, partial: Partial<TrayState>) => {
+	Object.assign(trayState, partial);
+	refreshTrayMenu(trayState, buildTrayCallbacks());
+});
+
 // Move the pet window to an absolute screen position.
 // Renderer owns all coordinate policy (floor lock for walking, free Y for drag).
 ipcMain.on('pet:set-position', (_event, x: number, y: number) => {
@@ -146,8 +170,38 @@ ipcMain.handle('pet:get-state', () => {
 	};
 });
 
+// Tray callbacks dispatch to the renderer via IPC so the renderer's state
+// machine remains the single source of truth for what Codi is doing.
+function buildTrayCallbacks(): TrayCallbacks {
+	return {
+		onToggleCoding: () => {
+			petWindow?.webContents.send('pet:tray-action', 'toggle-coding');
+		},
+		onToggleAiMode: () => {
+			petWindow?.webContents.send('pet:tray-action', 'toggle-ai-mode');
+		},
+		onOpenScreenRecording: () => {
+			shell.openExternal(
+				'x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture'
+			);
+		},
+		onToggleVisible: () => {
+			trayState.petVisible = !trayState.petVisible;
+			applyWindowVisibility(petWindow, trayState.petVisible);
+			refreshTrayMenu(trayState, buildTrayCallbacks());
+		},
+		onQuit: () => {
+			app.quit();
+		},
+	};
+}
+
 app.whenReady().then(() => {
 	createPetWindow();
+
+	// Menu bar tray. Lives for the whole app lifetime; clicking shows the
+	// same menu options as right-clicking Codi.
+	createTray(getTrayIconPath(), buildTrayCallbacks(), trayState);
 
 	// Broadcast system metrics to the renderer at a fixed cadence.
 	stopMetrics = startMetricsPoller(METRICS_INTERVAL_MS, (m) => {
@@ -183,8 +237,11 @@ app.whenReady().then(() => {
 	};
 
 	stopNotifyServer = startNotifyServer(sendNotice);
+	// File watch only refreshes ai_mode. Notices must come from an explicit
+	// signal (HTTP /notify) — otherwise every keystroke in the current Claude
+	// session would raise a notice, which is meaningless attention noise.
 	stopClaudeWatcher = startClaudeWatcher({
-		onNotify: () => sendNotice({ source: 'claude' }),
+		onNotify: () => {},
 		onActivity: sendAiActivity,
 	});
 
@@ -201,6 +258,7 @@ app.on('before-quit', () => {
 	if (stopGitWatcher) stopGitWatcher();
 	if (stopNotifyServer) stopNotifyServer();
 	if (stopClaudeWatcher) stopClaudeWatcher();
+	destroyTray();
 });
 
 app.on('window-all-closed', () => {

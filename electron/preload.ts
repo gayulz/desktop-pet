@@ -56,6 +56,16 @@ contextBridge.exposeInMainWorld('electronAPI', {
 		ipcRenderer.on('pet:ai-activity', wrapped);
 		return () => ipcRenderer.removeListener('pet:ai-activity', wrapped);
 	},
+	onTrayAction: (listener: (action: 'toggle-coding' | 'toggle-ai-mode') => void) => {
+		const wrapped = (
+			_e: IpcRendererEvent,
+			a: 'toggle-coding' | 'toggle-ai-mode'
+		) => listener(a);
+		ipcRenderer.on('pet:tray-action', wrapped);
+		return () => ipcRenderer.removeListener('pet:tray-action', wrapped);
+	},
+	reportState: (state: { codingActive?: boolean; aiModeActive?: boolean; petVisible?: boolean }) =>
+		ipcRenderer.send('pet:state-update', state),
 	showContextMenu: (
 		codingActive: boolean,
 		aiModeActive: boolean
