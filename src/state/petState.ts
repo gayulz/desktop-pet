@@ -21,7 +21,8 @@ export type PetState =
 	| 'studying'
 	| 'sleeping'
 	| 'overheated'
-	| 'celebrating';
+	| 'celebrating'
+	| 'ai_mode';
 
 export interface PetContext {
 	cpuLoad: number;

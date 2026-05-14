@@ -30,7 +30,12 @@ export interface GitCommitEvent {
 	timestampMs: number;
 }
 
-export type ContextMenuResult = 'toggle-coding' | 'quit' | null;
+export type ContextMenuResult =
+	| 'toggle-coding'
+	| 'toggle-ai-mode'
+	| 'open-screen-recording'
+	| 'quit'
+	| null;
 
 export interface ElectronAPI {
 	quitApp: () => void;
@@ -39,7 +44,8 @@ export interface ElectronAPI {
 	onMetricsTick: (listener: (m: PetMetrics) => void) => () => void;
 	onActiveWindowTick: (listener: (info: ActiveWindowInfo) => void) => () => void;
 	onGitCommit: (listener: (e: GitCommitEvent) => void) => () => void;
-	showContextMenu: (codingActive: boolean) => Promise<ContextMenuResult>;
+	showContextMenu: (codingActive: boolean, aiModeActive: boolean) => Promise<ContextMenuResult>;
+	openScreenRecordingPrefs: () => void;
 }
 
 declare global {

@@ -1,4 +1,4 @@
-import { app, BrowserWindow, screen, ipcMain, Menu } from 'electron';
+import { app, BrowserWindow, screen, ipcMain, Menu, shell } from 'electron';
 import * as path from 'path';
 import { startMetricsPoller } from './metrics';
 import { startActiveWindowPoller } from './active-window';
@@ -62,12 +62,23 @@ ipcMain.on('app:quit', () => {
 	app.quit();
 });
 
-// Right-click context menu. The renderer reports whether coding mode is
-// currently overridden so the toggle label can reflect the current state.
-ipcMain.handle('pet:show-menu', async (_event, payload: { codingActive: boolean }) => {
-	return new Promise<'toggle-coding' | 'quit' | null>((resolve) => {
+type ContextMenuAction =
+	| 'toggle-coding'
+	| 'toggle-ai-mode'
+	| 'open-screen-recording'
+	| 'quit';
+
+interface MenuPayload {
+	codingActive: boolean;
+	aiModeActive: boolean;
+}
+
+// Right-click context menu. The renderer reports whether manual override modes
+// are active so the toggle labels reflect the current state.
+ipcMain.handle('pet:show-menu', async (_event, payload: MenuPayload) => {
+	return new Promise<ContextMenuAction | null>((resolve) => {
 		let resolved = false;
-		const done = (value: 'toggle-coding' | 'quit' | null) => {
+		const done = (value: ContextMenuAction | null) => {
 			if (resolved) return;
 			resolved = true;
 			resolve(value);
@@ -76,6 +87,15 @@ ipcMain.handle('pet:show-menu', async (_event, payload: { codingActive: boolean 
 			{
 				label: payload.codingActive ? '코딩 모드 종료' : '코딩 모드 시작',
 				click: () => done('toggle-coding'),
+			},
+			{
+				label: payload.aiModeActive ? 'AI 모드 종료' : 'AI 모드 시작',
+				click: () => done('toggle-ai-mode'),
+			},
+			{ type: 'separator' },
+			{
+				label: '권한 설정 열기 (자동 감지 활성화)',
+				click: () => done('open-screen-recording'),
 			},
 			{ type: 'separator' },
 			{
@@ -88,6 +108,11 @@ ipcMain.handle('pet:show-menu', async (_event, payload: { codingActive: boolean 
 			callback: () => done(null),
 		});
 	});
+});
+
+ipcMain.on('pet:open-screen-recording-prefs', () => {
+	// macOS deep link to the Privacy & Security › Screen Recording pane.
+	shell.openExternal('x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture');
 });
 
 // Move the pet window to an absolute screen position.

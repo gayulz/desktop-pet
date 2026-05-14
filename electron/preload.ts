@@ -40,8 +40,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
 		ipcRenderer.on('pet:git-commit', wrapped);
 		return () => ipcRenderer.removeListener('pet:git-commit', wrapped);
 	},
-	showContextMenu: (codingActive: boolean): Promise<'toggle-coding' | 'quit' | null> =>
-		ipcRenderer.invoke('pet:show-menu', { codingActive }),
+	showContextMenu: (
+		codingActive: boolean,
+		aiModeActive: boolean
+	): Promise<'toggle-coding' | 'toggle-ai-mode' | 'open-screen-recording' | 'quit' | null> =>
+		ipcRenderer.invoke('pet:show-menu', { codingActive, aiModeActive }),
+	openScreenRecordingPrefs: () => ipcRenderer.send('pet:open-screen-recording-prefs'),
 });
 
 export {};
