@@ -42,6 +42,9 @@ export interface PetContext {
 	noticeActive: boolean;
 	// Timestamp the last ~/.claude/ jsonl activity landed.
 	lastAiActivityAtMs: number | null;
+	// User-tunable study detection keywords (lowercase preferred). Empty array
+	// disables studying detection entirely.
+	studyKeywords: string[];
 	// Current time, injected so deriveState stays pure and testable.
 	nowMs: number;
 }
@@ -62,15 +65,19 @@ export const AI_ACTIVITY_WINDOW_MS = 5 * 60 * 1000;
 // Title-based study detection. Matches learning platforms broadly so YouTube
 // tutorials, Coursera, Udemy etc. count as studying too — not just Inflearn.
 // Lowercased before matching, so add lowercase forms only.
-const STUDY_KEYWORDS = ['인프런', 'inflearn', '강의', '학습', '공부'];
+// Default keywords used when no user override is provided. The actual list
+// is supplied per-call via PetContext.studyKeywords so settings updates take
+// effect without a code change.
+export const DEFAULT_STUDY_KEYWORDS = ['인프런', 'inflearn', '강의', '학습', '공부'];
 
-function isStudying(title: string, category: AppCategory): boolean {
+function isStudying(title: string, category: AppCategory, keywords: string[]): boolean {
 	// Only consider studying when the user is on a webpage. Otherwise broad
 	// words like "강의" or "공부" can be falsely matched against random
 	// messenger chats or note titles.
 	if (category !== 'browser') return false;
+	if (keywords.length === 0) return false;
 	const lower = title.toLowerCase();
-	return STUDY_KEYWORDS.some((k) => lower.includes(k.toLowerCase()));
+	return keywords.some((k) => lower.includes(k.toLowerCase()));
 }
 
 function isCoding(category: AppCategory, systemIdleSec: number): boolean {
@@ -91,7 +98,7 @@ export function deriveState(ctx: PetContext): PetState {
 	) {
 		return 'ai_mode';
 	}
-	if (isStudying(ctx.activeWindowTitle, ctx.activeAppCategory)) return 'studying';
+	if (isStudying(ctx.activeWindowTitle, ctx.activeAppCategory, ctx.studyKeywords)) return 'studying';
 	if (isCoding(ctx.activeAppCategory, ctx.systemIdleSec)) return 'coding';
 	if (ctx.systemIdleSec > SLEEP_AFTER_SEC) return 'sleeping';
 	if (ctx.appUptimeSec < STARTUP_WALK_GRACE_SEC) return 'walking';

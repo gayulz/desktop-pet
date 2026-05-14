@@ -8,7 +8,12 @@ import StudyingSprite from './sprites/StudyingSprite';
 import CelebratingSprite from './sprites/CelebratingSprite';
 import AiModeSprite from './sprites/AiModeSprite';
 import NoticeSprite from './sprites/NoticeSprite';
-import { deriveState, CELEBRATE_DURATION_MS, type PetState } from './state/petState';
+import {
+	deriveState,
+	CELEBRATE_DURATION_MS,
+	DEFAULT_STUDY_KEYWORDS,
+	type PetState,
+} from './state/petState';
 import type { AppCategory } from './types/electron';
 import { useWindowMotion } from './hooks/useWindowMotion';
 
@@ -31,6 +36,7 @@ const PetController = () => {
 	const lastCommitAtMsRef = useRef<number | null>(null);
 	const noticeActiveRef = useRef(false);
 	const lastAiActivityAtMsRef = useRef<number | null>(null);
+	const studyKeywordsRef = useRef<string[]>(DEFAULT_STUDY_KEYWORDS);
 
 	const { direction, turning, onMouseDown } = useWindowMotion(state);
 
@@ -50,6 +56,7 @@ const PetController = () => {
 				lastCommitAtMs: lastCommitAtMsRef.current,
 				noticeActive: noticeActiveRef.current,
 				lastAiActivityAtMs: lastAiActivityAtMsRef.current,
+				studyKeywords: studyKeywordsRef.current,
 				nowMs: Date.now(),
 			});
 			setState((prev) => (prev === next ? prev : next));
@@ -96,6 +103,17 @@ const PetController = () => {
 			}
 		});
 
+		// Pull the current settings on boot, then watch for changes pushed by
+		// main when the user saves the settings window.
+		window.settingsAPI.get().then((s) => {
+			studyKeywordsRef.current = s.studyKeywords;
+			recompute();
+		});
+		const offSettings = window.settingsBridge.onSettingsChanged((s) => {
+			studyKeywordsRef.current = s.studyKeywords;
+			recompute();
+		});
+
 		return () => {
 			offMetrics();
 			offActive();
@@ -103,6 +121,7 @@ const PetController = () => {
 			offNotify();
 			offAi();
 			offTray();
+			offSettings();
 			clearInterval(aiExpiryTick);
 		};
 	}, []);
@@ -119,6 +138,7 @@ const PetController = () => {
 				lastCommitAtMs: lastCommitAtMsRef.current,
 				noticeActive: noticeActiveRef.current,
 				lastAiActivityAtMs: lastAiActivityAtMsRef.current,
+				studyKeywords: studyKeywordsRef.current,
 				nowMs: Date.now(),
 			})
 		);

@@ -5,6 +5,7 @@ export interface TrayCallbacks {
 	onToggleCoding: () => void;
 	onToggleAiMode: () => void;
 	onOpenScreenRecording: () => void;
+	onOpenSettings: () => void;
 	onToggleVisible: () => void;
 	onQuit: () => void;
 }
@@ -35,6 +36,10 @@ export function buildMenuTemplate(state: TrayState, cb: TrayCallbacks): MenuItem
 			click: cb.onToggleVisible,
 		},
 		{ type: 'separator' },
+		{
+			label: '설정 열기...',
+			click: cb.onOpenSettings,
+		},
 		{
 			label: '권한 설정 열기 (자동 감지 활성화)',
 			click: cb.onOpenScreenRecording,

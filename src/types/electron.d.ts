@@ -36,6 +36,18 @@ export interface NotifyPayload {
 	source: 'http' | 'claude';
 }
 
+export interface AppSettings {
+	studyKeywords: string[];
+	enableActiveWindow: boolean;
+	enableClaudeWatch: boolean;
+	enableGitWatch: boolean;
+}
+
+export interface SettingsAPI {
+	get: () => Promise<AppSettings>;
+	save: (next: Partial<AppSettings>) => Promise<AppSettings>;
+}
+
 export type ContextMenuResult =
 	| 'toggle-coding'
 	| 'toggle-ai-mode'
@@ -67,5 +79,9 @@ export interface ElectronAPI {
 declare global {
 	interface Window {
 		electronAPI: ElectronAPI;
+		settingsAPI: SettingsAPI;
+		settingsBridge: {
+			onSettingsChanged: (listener: (s: AppSettings) => void) => () => void;
+		};
 	}
 }

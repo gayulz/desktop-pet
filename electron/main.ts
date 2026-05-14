@@ -1,5 +1,6 @@
-import { app, BrowserWindow, screen, ipcMain, Menu, shell } from 'electron';
+import { app, BrowserWindow, screen, shell } from 'electron';
 import * as path from 'path';
+import { registerIpcHandlers } from './ipc';
 import { startMetricsPoller } from './metrics';
 import { startActiveWindowPoller } from './active-window';
 import { startGitWatcher } from './git-watcher';
@@ -14,6 +15,7 @@ import {
 	type TrayCallbacks,
 	type TrayState,
 } from './tray';
+import { loadSettings, saveSettings, type AppSettings } from './settings';
 
 const isDev = !app.isPackaged;
 let petWindow: BrowserWindow | null = null;
@@ -30,6 +32,8 @@ const trayState: TrayState = {
 	aiModeActive: false,
 	petVisible: true,
 };
+
+let settingsWindow: BrowserWindow | null = null;
 
 const PET_SIZE = 220;
 // Walk range: 60% of screen width, centered horizontally.
@@ -70,6 +74,11 @@ function createPetWindow() {
 
 	if (isDev) {
 		petWindow.loadURL('http://localhost:5173');
+		// Forward renderer console messages to the dev terminal so we can
+		// debug PetController state from the same place as main logs.
+		petWindow.webContents.on('console-message', (_e, _level, message) => {
+			console.log('[renderer]', message);
+		});
 	} else {
 		petWindow.loadFile(path.join(__dirname, '../dist/index.html'));
 	}
@@ -79,95 +88,14 @@ function createPetWindow() {
 	});
 }
 
-ipcMain.on('app:quit', () => {
-	app.quit();
-});
-
-type ContextMenuAction =
-	| 'toggle-coding'
-	| 'toggle-ai-mode'
-	| 'open-screen-recording'
-	| 'quit';
-
-interface MenuPayload {
-	codingActive: boolean;
-	aiModeActive: boolean;
-}
-
-// Right-click context menu. The renderer reports whether manual override modes
-// are active so the toggle labels reflect the current state.
-ipcMain.handle('pet:show-menu', async (_event, payload: MenuPayload) => {
-	return new Promise<ContextMenuAction | null>((resolve) => {
-		let resolved = false;
-		const done = (value: ContextMenuAction | null) => {
-			if (resolved) return;
-			resolved = true;
-			resolve(value);
-		};
-		const menu = Menu.buildFromTemplate([
-			{
-				label: payload.codingActive ? '코딩 모드 종료' : '코딩 모드 시작',
-				click: () => done('toggle-coding'),
-			},
-			{
-				label: payload.aiModeActive ? 'AI 모드 종료' : 'AI 모드 시작',
-				click: () => done('toggle-ai-mode'),
-			},
-			{ type: 'separator' },
-			{
-				label: '권한 설정 열기 (자동 감지 활성화)',
-				click: () => done('open-screen-recording'),
-			},
-			{ type: 'separator' },
-			{
-				label: '코디 재우기 (종료)',
-				click: () => done('quit'),
-			},
-		]);
-		menu.popup({
-			window: petWindow ?? undefined,
-			callback: () => done(null),
-		});
-	});
-});
-
-ipcMain.on('pet:open-screen-recording-prefs', () => {
-	// macOS deep link to the Privacy & Security › Screen Recording pane.
-	shell.openExternal('x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture');
-});
-
-// Renderer reports manual override changes so the tray menu labels stay
-// in sync ("코딩 모드 시작" ↔ "코딩 모드 종료").
-ipcMain.on('pet:state-update', (_event, partial: Partial<TrayState>) => {
-	Object.assign(trayState, partial);
-	refreshTrayMenu(trayState, buildTrayCallbacks());
-});
-
-// Move the pet window to an absolute screen position.
-// Renderer owns all coordinate policy (floor lock for walking, free Y for drag).
-ipcMain.on('pet:set-position', (_event, x: number, y: number) => {
-	if (!petWindow) return;
-	petWindow.setPosition(Math.round(x), Math.round(y));
-});
-
-// Return current window position plus screen geometry so the renderer can plan
-// both the wide walk loop (initial) and the local walk loop (after drag).
-ipcMain.handle('pet:get-state', () => {
-	if (!petWindow) {
-		return null;
-	}
-	const [x, y] = petWindow.getPosition();
-	const { width: sw, height: sh } = screen.getPrimaryDisplay().workAreaSize;
-	const floorY = sh - PET_SIZE - BOTTOM_OFFSET;
-	return {
-		x,
-		y,
-		screenWidth: sw,
-		screenHeight: sh,
-		petSize: PET_SIZE,
-		walkMarginRatio: WALK_MARGIN_RATIO,
-		floorY,
-	};
+registerIpcHandlers({
+	getPetWindow: () => petWindow,
+	petSize: PET_SIZE,
+	walkMarginRatio: WALK_MARGIN_RATIO,
+	bottomOffset: BOTTOM_OFFSET,
+	trayState,
+	getTrayCallbacks: () => buildTrayCallbacks(),
+	applySettings,
 });
 
 // Tray callbacks dispatch to the renderer via IPC so the renderer's state
@@ -185,6 +113,9 @@ function buildTrayCallbacks(): TrayCallbacks {
 				'x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture'
 			);
 		},
+		onOpenSettings: () => {
+			openSettingsWindow();
+		},
 		onToggleVisible: () => {
 			trayState.petVisible = !trayState.petVisible;
 			applyWindowVisibility(petWindow, trayState.petVisible);
@@ -196,6 +127,91 @@ function buildTrayCallbacks(): TrayCallbacks {
 	};
 }
 
+function startActiveWindow() {
+	if (stopActiveWindow) return;
+	stopActiveWindow = startActiveWindowPoller(ACTIVE_WINDOW_INTERVAL_MS, (info) => {
+		if (petWindow && !petWindow.isDestroyed()) {
+			petWindow.webContents.send('pet:active-window-tick', info);
+		}
+	});
+}
+
+function startGit() {
+	if (stopGitWatcher) return;
+	stopGitWatcher = startGitWatcher(process.cwd(), (event) => {
+		if (petWindow && !petWindow.isDestroyed()) {
+			petWindow.webContents.send('pet:git-commit', event);
+		}
+	});
+}
+
+function startClaude() {
+	if (stopClaudeWatcher) return;
+	const sendAiActivity = (timestampMs: number) => {
+		if (petWindow && !petWindow.isDestroyed()) {
+			petWindow.webContents.send('pet:ai-activity', timestampMs);
+		}
+	};
+	stopClaudeWatcher = startClaudeWatcher({
+		onNotify: () => {},
+		onActivity: sendAiActivity,
+	});
+}
+
+function applySettings(settings: AppSettings) {
+	// Toggle individual watchers based on the settings without restarting.
+	if (settings.enableActiveWindow) {
+		startActiveWindow();
+	} else if (stopActiveWindow) {
+		stopActiveWindow();
+		stopActiveWindow = null;
+	}
+	if (settings.enableGitWatch) {
+		startGit();
+	} else if (stopGitWatcher) {
+		stopGitWatcher();
+		stopGitWatcher = null;
+	}
+	if (settings.enableClaudeWatch) {
+		startClaude();
+	} else if (stopClaudeWatcher) {
+		stopClaudeWatcher();
+		stopClaudeWatcher = null;
+	}
+	// Push the latest keyword list to the renderer immediately.
+	if (petWindow && !petWindow.isDestroyed()) {
+		petWindow.webContents.send('settings:changed', settings);
+	}
+}
+
+function openSettingsWindow() {
+	if (settingsWindow && !settingsWindow.isDestroyed()) {
+		settingsWindow.focus();
+		return;
+	}
+	settingsWindow = new BrowserWindow({
+		width: 480,
+		height: 540,
+		title: '코디 설정',
+		resizable: false,
+		minimizable: false,
+		maximizable: false,
+		webPreferences: {
+			preload: path.join(__dirname, 'preload.js'),
+			contextIsolation: true,
+			nodeIntegration: false,
+		},
+	});
+	if (isDev) {
+		settingsWindow.loadURL('http://localhost:5173/settings.html');
+	} else {
+		settingsWindow.loadFile(path.join(__dirname, '../dist/settings.html'));
+	}
+	settingsWindow.on('closed', () => {
+		settingsWindow = null;
+	});
+}
+
 app.whenReady().then(() => {
 	createPetWindow();
 
@@ -203,47 +219,23 @@ app.whenReady().then(() => {
 	// same menu options as right-clicking Codi.
 	createTray(getTrayIconPath(), buildTrayCallbacks(), trayState);
 
-	// Broadcast system metrics to the renderer at a fixed cadence.
+	// CPU + idle metrics always run — they're cheap and required by the state
+	// machine even when external integrations are disabled.
 	stopMetrics = startMetricsPoller(METRICS_INTERVAL_MS, (m) => {
 		if (petWindow && !petWindow.isDestroyed()) {
 			petWindow.webContents.send('pet:metrics-tick', m);
 		}
 	});
 
-	// Broadcast active window changes (deduplicated by the poller).
-	stopActiveWindow = startActiveWindowPoller(ACTIVE_WINDOW_INTERVAL_MS, (info) => {
-		if (petWindow && !petWindow.isDestroyed()) {
-			petWindow.webContents.send('pet:active-window-tick', info);
-		}
-	});
-
-	// Watch the project's .git/logs/HEAD for commit events.
-	// In packaged builds there is no git repo, so the watcher no-ops.
-	stopGitWatcher = startGitWatcher(process.cwd(), (event) => {
-		if (petWindow && !petWindow.isDestroyed()) {
-			petWindow.webContents.send('pet:git-commit', event);
-		}
-	});
-
-	const sendNotice = (payload: NotifyPayload) => {
+	stopNotifyServer = startNotifyServer((payload) => {
 		if (petWindow && !petWindow.isDestroyed()) {
 			petWindow.webContents.send('pet:notify', payload);
 		}
-	};
-	const sendAiActivity = (timestampMs: number) => {
-		if (petWindow && !petWindow.isDestroyed()) {
-			petWindow.webContents.send('pet:ai-activity', timestampMs);
-		}
-	};
-
-	stopNotifyServer = startNotifyServer(sendNotice);
-	// File watch only refreshes ai_mode. Notices must come from an explicit
-	// signal (HTTP /notify) — otherwise every keystroke in the current Claude
-	// session would raise a notice, which is meaningless attention noise.
-	stopClaudeWatcher = startClaudeWatcher({
-		onNotify: () => {},
-		onActivity: sendAiActivity,
 	});
+
+	// Apply persisted settings: this starts the active-window / git / claude
+	// watchers that are enabled.
+	applySettings(loadSettings());
 
 	app.on('activate', () => {
 		if (BrowserWindow.getAllWindows().length === 0) {

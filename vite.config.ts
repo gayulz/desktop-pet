@@ -5,7 +5,15 @@ import { resolve } from 'path';
 export default defineConfig({
 	plugins: [react()],
 	base: './',
-	build: { outDir: 'dist' },
+	build: {
+		outDir: 'dist',
+		rollupOptions: {
+			input: {
+				main: resolve(__dirname, 'index.html'),
+				settings: resolve(__dirname, 'settings.html'),
+			},
+		},
+	},
 	server: { port: 5173 },
 	resolve: {
 		alias: {

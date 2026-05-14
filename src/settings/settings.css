@@ -1,0 +1,117 @@
+* {
+	box-sizing: border-box;
+}
+
+html, body, #root {
+	margin: 0;
+	padding: 0;
+	font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', sans-serif;
+	font-size: 14px;
+	color: #1f1f1f;
+	background: #fafafa;
+}
+
+.settings {
+	padding: 20px 24px;
+	display: flex;
+	flex-direction: column;
+	gap: 20px;
+}
+
+.settings h1 {
+	font-size: 18px;
+	margin: 0 0 4px 0;
+}
+
+.settings section {
+	background: #fff;
+	border: 1px solid #e2e2e2;
+	border-radius: 8px;
+	padding: 14px 16px;
+	display: flex;
+	flex-direction: column;
+	gap: 10px;
+}
+
+.settings section h2 {
+	font-size: 14px;
+	margin: 0;
+	color: #444;
+	font-weight: 600;
+}
+
+.settings label.toggle {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 12px;
+	font-size: 13px;
+}
+
+.settings .keyword-list {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 6px;
+}
+
+.settings .keyword-chip {
+	background: #eef3ff;
+	color: #1d4ed8;
+	border-radius: 12px;
+	padding: 4px 10px 4px 12px;
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+	font-size: 12px;
+}
+
+.settings .keyword-chip button {
+	background: transparent;
+	border: none;
+	cursor: pointer;
+	color: #1d4ed8;
+	font-size: 13px;
+	line-height: 1;
+	padding: 0;
+}
+
+.settings .add-row {
+	display: flex;
+	gap: 8px;
+}
+
+.settings .add-row input {
+	flex: 1;
+	padding: 6px 10px;
+	border: 1px solid #d0d0d0;
+	border-radius: 6px;
+	font-size: 13px;
+}
+
+.settings .add-row button,
+.settings .save-row button {
+	background: #1d4ed8;
+	color: #fff;
+	border: none;
+	border-radius: 6px;
+	padding: 6px 14px;
+	cursor: pointer;
+	font-size: 13px;
+}
+
+.settings .save-row {
+	display: flex;
+	justify-content: flex-end;
+	gap: 8px;
+}
+
+.settings .save-row .secondary {
+	background: #ececec;
+	color: #333;
+}
+
+.settings .status {
+	font-size: 12px;
+	color: #6b7280;
+	min-height: 16px;
+}

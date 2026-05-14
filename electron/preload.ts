@@ -1,6 +1,13 @@
 import { contextBridge, ipcRenderer } from 'electron';
 import type { IpcRendererEvent } from 'electron';
 
+export interface AppSettings {
+	studyKeywords: string[];
+	enableActiveWindow: boolean;
+	enableClaudeWatch: boolean;
+	enableGitWatch: boolean;
+}
+
 export interface PetMetrics {
 	cpuLoad: number;
 	systemIdleSec: number;
@@ -72,6 +79,20 @@ contextBridge.exposeInMainWorld('electronAPI', {
 	): Promise<'toggle-coding' | 'toggle-ai-mode' | 'open-screen-recording' | 'quit' | null> =>
 		ipcRenderer.invoke('pet:show-menu', { codingActive, aiModeActive }),
 	openScreenRecordingPrefs: () => ipcRenderer.send('pet:open-screen-recording-prefs'),
+});
+
+contextBridge.exposeInMainWorld('settingsAPI', {
+	get: (): Promise<AppSettings> => ipcRenderer.invoke('settings:get'),
+	save: (next: Partial<AppSettings>): Promise<AppSettings> =>
+		ipcRenderer.invoke('settings:save', next),
+});
+
+contextBridge.exposeInMainWorld('settingsBridge', {
+	onSettingsChanged: (listener: (s: AppSettings) => void) => {
+		const wrapped = (_e: IpcRendererEvent, s: AppSettings) => listener(s);
+		ipcRenderer.on('settings:changed', wrapped);
+		return () => ipcRenderer.removeListener('settings:changed', wrapped);
+	},
 });
 
 export {};
