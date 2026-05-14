@@ -24,6 +24,12 @@ export interface ActiveWindowInfo {
 	category: AppCategory;
 }
 
+export interface GitCommitEvent {
+	sha: string;
+	subject: string;
+	timestampMs: number;
+}
+
 export type ContextMenuResult = 'toggle-coding' | 'quit' | null;
 
 export interface ElectronAPI {
@@ -32,6 +38,7 @@ export interface ElectronAPI {
 	getState: () => Promise<PetState | null>;
 	onMetricsTick: (listener: (m: PetMetrics) => void) => () => void;
 	onActiveWindowTick: (listener: (info: ActiveWindowInfo) => void) => () => void;
+	onGitCommit: (listener: (e: GitCommitEvent) => void) => () => void;
 	showContextMenu: (codingActive: boolean) => Promise<ContextMenuResult>;
 }
 

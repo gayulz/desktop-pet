@@ -3,14 +3,13 @@
  *
  * Priority (highest first):
  *   1. manualOverride        — explicit user toggle (coding mode)
- *   2. overheated            — CPU sustained over the threshold
- *   3. studying              — active window title contains a study keyword
- *   4. coding                — active app is an editor/terminal AND user is active
- *   5. sleeping              — no input for SLEEP_AFTER_SEC
- *   6. walking (grace/idle<) — startup grace OR recent input
- *   7. idle                  — quiet but awake
- *
- * celebrating is scheduled in Stage 2 (Git commit detector).
+ *   2. celebrating           — within CELEBRATE_DURATION_MS of a git commit
+ *   3. overheated            — CPU sustained over the threshold
+ *   4. studying              — active window title contains a study keyword
+ *   5. coding                — active app is an editor/terminal AND user is active
+ *   6. sleeping              — no input for SLEEP_AFTER_SEC
+ *   7. walking (grace/idle<) — startup grace OR recent input
+ *   8. idle                  — quiet but awake
  */
 
 import type { AppCategory } from '../types/electron';
@@ -31,6 +30,10 @@ export interface PetContext {
 	appUptimeSec: number;
 	activeAppCategory: AppCategory;
 	activeWindowTitle: string;
+	// Timestamp the last git commit landed (Date.now()). null = no commit yet.
+	lastCommitAtMs: number | null;
+	// Current time, injected so deriveState stays pure and testable.
+	nowMs: number;
 }
 
 export const OVERHEATED_CPU_THRESHOLD = 80;
@@ -40,6 +43,8 @@ export const STARTUP_WALK_GRACE_SEC = 20;
 // If the active app is an editor/terminal AND the user typed within this many
 // seconds, count it as real coding (vs. an editor left open in the background).
 export const CODING_IDLE_THRESHOLD_SEC = 60;
+// celebrating window after a commit lands.
+export const CELEBRATE_DURATION_MS = 3000;
 
 // Title-based study detection. Matches learning platforms broadly so YouTube
 // tutorials, Coursera, Udemy etc. count as studying too — not just Inflearn.
@@ -62,6 +67,9 @@ function isCoding(category: AppCategory, systemIdleSec: number): boolean {
 
 export function deriveState(ctx: PetContext): PetState {
 	if (ctx.manualOverride) return ctx.manualOverride;
+	if (ctx.lastCommitAtMs !== null && ctx.nowMs - ctx.lastCommitAtMs < CELEBRATE_DURATION_MS) {
+		return 'celebrating';
+	}
 	if (ctx.cpuLoad > OVERHEATED_CPU_THRESHOLD) return 'overheated';
 	if (isStudying(ctx.activeWindowTitle, ctx.activeAppCategory)) return 'studying';
 	if (isCoding(ctx.activeAppCategory, ctx.systemIdleSec)) return 'coding';

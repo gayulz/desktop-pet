@@ -2,11 +2,13 @@ import { app, BrowserWindow, screen, ipcMain, Menu } from 'electron';
 import * as path from 'path';
 import { startMetricsPoller } from './metrics';
 import { startActiveWindowPoller } from './active-window';
+import { startGitWatcher } from './git-watcher';
 
 const isDev = !app.isPackaged;
 let petWindow: BrowserWindow | null = null;
 let stopMetrics: (() => void) | null = null;
 let stopActiveWindow: (() => void) | null = null;
+let stopGitWatcher: (() => void) | null = null;
 
 const PET_SIZE = 220;
 // Walk range: 60% of screen width, centered horizontally.
@@ -132,6 +134,14 @@ app.whenReady().then(() => {
 		}
 	});
 
+	// Watch the project's .git/logs/HEAD for commit events.
+	// In packaged builds there is no git repo, so the watcher no-ops.
+	stopGitWatcher = startGitWatcher(process.cwd(), (event) => {
+		if (petWindow && !petWindow.isDestroyed()) {
+			petWindow.webContents.send('pet:git-commit', event);
+		}
+	});
+
 	app.on('activate', () => {
 		if (BrowserWindow.getAllWindows().length === 0) {
 			createPetWindow();
@@ -142,6 +152,7 @@ app.whenReady().then(() => {
 app.on('before-quit', () => {
 	if (stopMetrics) stopMetrics();
 	if (stopActiveWindow) stopActiveWindow();
+	if (stopGitWatcher) stopGitWatcher();
 });
 
 app.on('window-all-closed', () => {

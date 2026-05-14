@@ -17,6 +17,7 @@
   },
   "dependencies": {
     "active-win": "^8.2.1",
+    "chokidar": "^3.6.0",
     "react": "^19.2.6",
     "react-dom": "^19.2.6",
     "systeminformation": "^5.31.6"

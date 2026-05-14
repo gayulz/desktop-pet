@@ -15,6 +15,12 @@ export interface ActiveWindowInfo {
 	category: AppCategory;
 }
 
+export interface GitCommitEvent {
+	sha: string;
+	subject: string;
+	timestampMs: number;
+}
+
 contextBridge.exposeInMainWorld('electronAPI', {
 	quitApp: () => ipcRenderer.send('app:quit'),
 	setPosition: (x: number, y: number) => ipcRenderer.send('pet:set-position', x, y),
@@ -28,6 +34,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
 		const wrapped = (_e: IpcRendererEvent, info: ActiveWindowInfo) => listener(info);
 		ipcRenderer.on('pet:active-window-tick', wrapped);
 		return () => ipcRenderer.removeListener('pet:active-window-tick', wrapped);
+	},
+	onGitCommit: (listener: (e: GitCommitEvent) => void) => {
+		const wrapped = (_e: IpcRendererEvent, ev: GitCommitEvent) => listener(ev);
+		ipcRenderer.on('pet:git-commit', wrapped);
+		return () => ipcRenderer.removeListener('pet:git-commit', wrapped);
 	},
 	showContextMenu: (codingActive: boolean): Promise<'toggle-coding' | 'quit' | null> =>
 		ipcRenderer.invoke('pet:show-menu', { codingActive }),

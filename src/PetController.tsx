@@ -5,7 +5,8 @@ import SleepingSprite from './sprites/SleepingSprite';
 import OverheatedSprite from './sprites/OverheatedSprite';
 import CodingSprite from './sprites/CodingSprite';
 import StudyingSprite from './sprites/StudyingSprite';
-import { deriveState, type PetState } from './state/petState';
+import CelebratingSprite from './sprites/CelebratingSprite';
+import { deriveState, CELEBRATE_DURATION_MS, type PetState } from './state/petState';
 import type { AppCategory } from './types/electron';
 
 // Walk policy
@@ -33,6 +34,8 @@ const PetController = () => {
 	// Latest active window info from main
 	const activeAppCategoryRef = useRef<AppCategory>('unknown');
 	const activeWindowTitleRef = useRef('');
+	// Most recent git commit landing (used for celebrating timeout).
+	const lastCommitAtMsRef = useRef<number | null>(null);
 
 	// Position state
 	const centerXRef = useRef<number | null>(null);
@@ -83,6 +86,8 @@ const PetController = () => {
 				appUptimeSec: (performance.now() - startedAt) / 1000,
 				activeAppCategory: activeAppCategoryRef.current,
 				activeWindowTitle: activeWindowTitleRef.current,
+				lastCommitAtMs: lastCommitAtMsRef.current,
+				nowMs: Date.now(),
 			});
 			setState((prev) => (prev === next ? prev : next));
 		};
@@ -97,10 +102,21 @@ const PetController = () => {
 			activeWindowTitleRef.current = info.title;
 			recompute();
 		});
+		const offGit = window.electronAPI.onGitCommit(() => {
+			// Anchor the celebration to local clock so the deriveState comparison
+			// is consistent even if the watcher reports a stale event timestamp.
+			lastCommitAtMsRef.current = Date.now();
+			recompute();
+			// Force a state refresh right after the celebration window expires so
+			// Codi promptly returns to walking/idle without waiting for the next
+			// metrics tick (which is 5 seconds away).
+			setTimeout(recompute, CELEBRATE_DURATION_MS + 50);
+		});
 
 		return () => {
 			offMetrics();
 			offActive();
+			offGit();
 		};
 	}, []);
 
@@ -228,6 +244,8 @@ const PetController = () => {
 					appUptimeSec: Number.POSITIVE_INFINITY,
 					activeAppCategory: activeAppCategoryRef.current,
 					activeWindowTitle: activeWindowTitleRef.current,
+					lastCommitAtMs: lastCommitAtMsRef.current,
+					nowMs: Date.now(),
 				})
 			);
 		}
@@ -248,8 +266,7 @@ const PetController = () => {
 			case 'studying':
 				return <StudyingSprite />;
 			case 'celebrating':
-				// Reserved for Stage 2 — fall back to walking so we don't crash.
-				return <WalkingSprite direction={direction} />;
+				return <CelebratingSprite />;
 		}
 	};
 
