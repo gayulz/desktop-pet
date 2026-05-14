@@ -1,7 +1,7 @@
-import Codi from './components/Codi';
+import WalkingCodi from './components/WalkingCodi';
 
 function App() {
-	return <Codi />;
+	return <WalkingCodi />;
 }
 
 export default App;

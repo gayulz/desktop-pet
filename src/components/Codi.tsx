@@ -17,9 +17,6 @@ const Codi = () => {
 				display: 'flex',
 				alignItems: 'center',
 				justifyContent: 'center',
-				// @ts-ignore - Electron drag region
-				WebkitAppRegion: 'drag',
-				cursor: 'grab',
 			}}
 		>
 			<img
