@@ -30,6 +30,12 @@ export interface GitCommitEvent {
 	timestampMs: number;
 }
 
+export interface NotifyPayload {
+	title?: string;
+	body?: string;
+	source: 'http' | 'claude';
+}
+
 export type ContextMenuResult =
 	| 'toggle-coding'
 	| 'toggle-ai-mode'
@@ -44,6 +50,7 @@ export interface ElectronAPI {
 	onMetricsTick: (listener: (m: PetMetrics) => void) => () => void;
 	onActiveWindowTick: (listener: (info: ActiveWindowInfo) => void) => () => void;
 	onGitCommit: (listener: (e: GitCommitEvent) => void) => () => void;
+	onNotify: (listener: (p: NotifyPayload) => void) => () => void;
 	showContextMenu: (codingActive: boolean, aiModeActive: boolean) => Promise<ContextMenuResult>;
 	openScreenRecordingPrefs: () => void;
 }

@@ -3,12 +3,16 @@ import * as path from 'path';
 import { startMetricsPoller } from './metrics';
 import { startActiveWindowPoller } from './active-window';
 import { startGitWatcher } from './git-watcher';
+import { startNotifyServer, type NotifyPayload } from './notify-server';
+import { startClaudeWatcher } from './claude-watcher';
 
 const isDev = !app.isPackaged;
 let petWindow: BrowserWindow | null = null;
 let stopMetrics: (() => void) | null = null;
 let stopActiveWindow: (() => void) | null = null;
 let stopGitWatcher: (() => void) | null = null;
+let stopNotifyServer: (() => void) | null = null;
+let stopClaudeWatcher: (() => void) | null = null;
 
 const PET_SIZE = 220;
 // Walk range: 60% of screen width, centered horizontally.
@@ -167,6 +171,15 @@ app.whenReady().then(() => {
 		}
 	});
 
+	const sendNotice = (payload: NotifyPayload) => {
+		if (petWindow && !petWindow.isDestroyed()) {
+			petWindow.webContents.send('pet:notify', payload);
+		}
+	};
+
+	stopNotifyServer = startNotifyServer(sendNotice);
+	stopClaudeWatcher = startClaudeWatcher(() => sendNotice({ source: 'claude' }));
+
 	app.on('activate', () => {
 		if (BrowserWindow.getAllWindows().length === 0) {
 			createPetWindow();
@@ -178,6 +191,8 @@ app.on('before-quit', () => {
 	if (stopMetrics) stopMetrics();
 	if (stopActiveWindow) stopActiveWindow();
 	if (stopGitWatcher) stopGitWatcher();
+	if (stopNotifyServer) stopNotifyServer();
+	if (stopClaudeWatcher) stopClaudeWatcher();
 });
 
 app.on('window-all-closed', () => {

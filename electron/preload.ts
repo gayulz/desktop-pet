@@ -21,6 +21,12 @@ export interface GitCommitEvent {
 	timestampMs: number;
 }
 
+export interface NotifyPayload {
+	title?: string;
+	body?: string;
+	source: 'http' | 'claude';
+}
+
 contextBridge.exposeInMainWorld('electronAPI', {
 	quitApp: () => ipcRenderer.send('app:quit'),
 	setPosition: (x: number, y: number) => ipcRenderer.send('pet:set-position', x, y),
@@ -39,6 +45,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
 		const wrapped = (_e: IpcRendererEvent, ev: GitCommitEvent) => listener(ev);
 		ipcRenderer.on('pet:git-commit', wrapped);
 		return () => ipcRenderer.removeListener('pet:git-commit', wrapped);
+	},
+	onNotify: (listener: (p: NotifyPayload) => void) => {
+		const wrapped = (_e: IpcRendererEvent, p: NotifyPayload) => listener(p);
+		ipcRenderer.on('pet:notify', wrapped);
+		return () => ipcRenderer.removeListener('pet:notify', wrapped);
 	},
 	showContextMenu: (
 		codingActive: boolean,

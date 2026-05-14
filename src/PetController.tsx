@@ -7,6 +7,7 @@ import CodingSprite from './sprites/CodingSprite';
 import StudyingSprite from './sprites/StudyingSprite';
 import CelebratingSprite from './sprites/CelebratingSprite';
 import AiModeSprite from './sprites/AiModeSprite';
+import NoticeSprite from './sprites/NoticeSprite';
 import { deriveState, CELEBRATE_DURATION_MS, type PetState } from './state/petState';
 import type { AppCategory } from './types/electron';
 import { useWindowMotion } from './hooks/useWindowMotion';
@@ -28,6 +29,7 @@ const PetController = () => {
 	const activeAppCategoryRef = useRef<AppCategory>('unknown');
 	const activeWindowTitleRef = useRef('');
 	const lastCommitAtMsRef = useRef<number | null>(null);
+	const noticeActiveRef = useRef(false);
 
 	const { direction, turning, onMouseDown } = useWindowMotion(state);
 
@@ -45,6 +47,7 @@ const PetController = () => {
 				activeAppCategory: activeAppCategoryRef.current,
 				activeWindowTitle: activeWindowTitleRef.current,
 				lastCommitAtMs: lastCommitAtMsRef.current,
+				noticeActive: noticeActiveRef.current,
 				nowMs: Date.now(),
 			});
 			setState((prev) => (prev === next ? prev : next));
@@ -68,18 +71,20 @@ const PetController = () => {
 			// metrics tick.
 			setTimeout(recompute, CELEBRATE_DURATION_MS + 50);
 		});
+		const offNotify = window.electronAPI.onNotify(() => {
+			noticeActiveRef.current = true;
+			recompute();
+		});
 
 		return () => {
 			offMetrics();
 			offActive();
 			offGit();
+			offNotify();
 		};
 	}, []);
 
-	const applyOverride = (mode: 'coding' | 'ai_mode' | null) => {
-		setCodingActive(mode === 'coding');
-		setAiModeActive(mode === 'ai_mode');
-		manualOverrideRef.current = mode;
+	const recomputeNow = () => {
 		setState(
 			deriveState({
 				cpuLoad: cpuLoadRef.current,
@@ -89,9 +94,36 @@ const PetController = () => {
 				activeAppCategory: activeAppCategoryRef.current,
 				activeWindowTitle: activeWindowTitleRef.current,
 				lastCommitAtMs: lastCommitAtMsRef.current,
+				noticeActive: noticeActiveRef.current,
 				nowMs: Date.now(),
 			})
 		);
+	};
+
+	const applyOverride = (mode: 'coding' | 'ai_mode' | null) => {
+		setCodingActive(mode === 'coding');
+		setAiModeActive(mode === 'ai_mode');
+		manualOverrideRef.current = mode;
+		recomputeNow();
+	};
+
+	const dismissNotice = () => {
+		if (!noticeActiveRef.current) return false;
+		noticeActiveRef.current = false;
+		recomputeNow();
+		return true;
+	};
+
+	// Intercept the press-down on Codi: while noticing, the left click only
+	// dismisses the notice (no drag), so the user can't accidentally fling
+	// Codi while trying to acknowledge an alert.
+	const handleMouseDown = (e: React.MouseEvent) => {
+		if (state === 'notice' && e.button === 0) {
+			e.preventDefault();
+			dismissNotice();
+			return;
+		}
+		void onMouseDown(e);
 	};
 
 	const handleContextMenu = async (e: React.MouseEvent) => {
@@ -133,12 +165,14 @@ const PetController = () => {
 				return <CelebratingSprite />;
 			case 'ai_mode':
 				return <AiModeSprite />;
+			case 'notice':
+				return <NoticeSprite />;
 		}
 	};
 
 	return (
 		<div
-			onMouseDown={onMouseDown}
+			onMouseDown={handleMouseDown}
 			onContextMenu={handleContextMenu}
 			style={{
 				width: '100%',

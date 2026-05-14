@@ -3,13 +3,16 @@
  *
  * Priority (highest first):
  *   1. manualOverride        — explicit user toggle (coding mode)
- *   2. celebrating           — within CELEBRATE_DURATION_MS of a git commit
- *   3. overheated            — CPU sustained over the threshold
- *   4. studying              — active window title contains a study keyword
- *   5. coding                — active app is an editor/terminal AND user is active
- *   6. sleeping              — no input for SLEEP_AFTER_SEC
- *   7. walking (grace/idle<) — startup grace OR recent input
- *   8. idle                  — quiet but awake
+ *   2. notice                — external trigger (HTTP API or Claude file watch)
+ *                              that needs the user's attention; persists until
+ *                              the user clicks Codi to dismiss
+ *   3. celebrating           — within CELEBRATE_DURATION_MS of a git commit
+ *   4. overheated            — CPU sustained over the threshold
+ *   5. studying              — active window title contains a study keyword
+ *   6. coding                — active app is an editor/terminal AND user is active
+ *   7. sleeping              — no input for SLEEP_AFTER_SEC
+ *   8. walking (grace/idle<) — startup grace OR recent input
+ *   9. idle                  — quiet but awake
  */
 
 import type { AppCategory } from '../types/electron';
@@ -22,7 +25,8 @@ export type PetState =
 	| 'sleeping'
 	| 'overheated'
 	| 'celebrating'
-	| 'ai_mode';
+	| 'ai_mode'
+	| 'notice';
 
 export interface PetContext {
 	cpuLoad: number;
@@ -33,6 +37,8 @@ export interface PetContext {
 	activeWindowTitle: string;
 	// Timestamp the last git commit landed (Date.now()). null = no commit yet.
 	lastCommitAtMs: number | null;
+	// True while an external notice has been raised and not yet dismissed.
+	noticeActive: boolean;
 	// Current time, injected so deriveState stays pure and testable.
 	nowMs: number;
 }
@@ -68,6 +74,7 @@ function isCoding(category: AppCategory, systemIdleSec: number): boolean {
 
 export function deriveState(ctx: PetContext): PetState {
 	if (ctx.manualOverride) return ctx.manualOverride;
+	if (ctx.noticeActive) return 'notice';
 	if (ctx.lastCommitAtMs !== null && ctx.nowMs - ctx.lastCommitAtMs < CELEBRATE_DURATION_MS) {
 		return 'celebrating';
 	}
