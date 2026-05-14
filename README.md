@@ -1,9 +1,38 @@
 # 🐾 Codi — 데스크톱 동반자
 
-macOS 데스크톱에 사는 작은 노란 레서팬더. 시스템 활동을 감지해서 같이 일하고,
-같이 공부하고, 같이 쉽니다.
+<p align="center">
+  <img src="assets/codi/idle.png" alt="Codi" width="220" />
+</p>
 
-## 무엇을 하나
+<p align="center">
+  <b>macOS 데스크톱에 사는 작은 노란 레서팬더.</b><br/>
+  시스템 활동을 감지해서 같이 일하고, 같이 공부하고, 같이 쉽니다.
+</p>
+
+---
+
+## 코디는 이렇게 변신해요
+
+코디는 사용자의 작업 상황을 감지해 **10가지 모습**으로 자동 전환됩니다.
+
+<table>
+  <tr>
+    <td align="center"><img src="assets/codi/idle.png" width="96" /><br/><b>idle</b><br/>통통</td>
+    <td align="center"><img src="assets/codi/working-1.png" width="96" /><br/><b>walking</b><br/>좌우 산책</td>
+    <td align="center"><img src="assets/codi/working-2.png" width="96" /><br/><b>turning</b><br/>방향 전환</td>
+    <td align="center"><img src="assets/codi/sleeping.png" width="96" /><br/><b>sleeping</b><br/>호흡</td>
+    <td align="center"><img src="assets/codi/overheated.png" width="96" /><br/><b>overheated</b><br/>좌우 흔들</td>
+  </tr>
+  <tr>
+    <td align="center"><img src="assets/codi/coding-1.png" width="96" /><br/><b>coding</b><br/>안경 + 노트북</td>
+    <td align="center"><img src="assets/codi/studying.png" width="96" /><br/><b>studying</b><br/>책 들고 공부</td>
+    <td align="center"><img src="assets/codi/ai-mode-1.png" width="96" /><br/><b>ai_mode</b><br/>마법사 모자</td>
+    <td align="center"><img src="assets/codi/celebrating-1.png" width="96" /><br/><b>celebrating</b><br/>만세 + 색종이</td>
+    <td align="center"><img src="assets/codi/notice-1.png" width="96" /><br/><b>notice</b><br/>종 흔들기</td>
+  </tr>
+</table>
+
+## 상태가 자동으로 바뀌는 규칙
 
 | 상태 | 트리거 | 모션 |
 |---|---|---|
@@ -16,6 +45,9 @@ macOS 데스크톱에 사는 작은 노란 레서팬더. 시스템 활동을 감
 | **celebrating** | `git commit` 감지 | 만세 + 색종이 |
 | **ai_mode** | `~/.claude/` 활동 | 마법사 모자 |
 | **notice** | `curl POST /notify` 외부 알림 | 종 흔들기, 좌클릭 dismiss |
+
+우선순위는 `manualOverride > notice > celebrating > overheated > ai_mode > studying > coding > sleeping > walking > idle` 순으로
+높은 자동 신호가 낮은 자동 신호를 가립니다.
 
 ## 외부 알림 보내기 (notice)
 
