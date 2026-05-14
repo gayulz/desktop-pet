@@ -15,6 +15,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
 		ipcRenderer.on('pet:metrics-tick', wrapped);
 		return () => ipcRenderer.removeListener('pet:metrics-tick', wrapped);
 	},
+	showContextMenu: (codingActive: boolean): Promise<'toggle-coding' | 'quit' | null> =>
+		ipcRenderer.invoke('pet:show-menu', { codingActive }),
 });
 
 export {};

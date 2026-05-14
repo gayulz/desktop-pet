@@ -25,16 +25,22 @@ export interface PetContext {
 	cpuLoad: number;            // 0..100
 	systemIdleSec: number;      // seconds since last system input
 	manualOverride: PetState | null;
+	// Seconds since the app started. Used for a startup grace period during
+	// which Codi always walks so the user sees motion right away even if they
+	// don't touch the mouse for a while.
+	appUptimeSec: number;
 }
 
 export const OVERHEATED_CPU_THRESHOLD = 80;
 export const SLEEP_AFTER_SEC = 300; // 5 minutes
 export const WALK_BELOW_SEC = 30;
+export const STARTUP_WALK_GRACE_SEC = 20;
 
 export function deriveState(ctx: PetContext): PetState {
 	if (ctx.manualOverride) return ctx.manualOverride;
 	if (ctx.cpuLoad > OVERHEATED_CPU_THRESHOLD) return 'overheated';
 	if (ctx.systemIdleSec > SLEEP_AFTER_SEC) return 'sleeping';
+	if (ctx.appUptimeSec < STARTUP_WALK_GRACE_SEC) return 'walking';
 	if (ctx.systemIdleSec < WALK_BELOW_SEC) return 'walking';
 	return 'idle';
 }

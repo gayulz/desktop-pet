@@ -15,11 +15,14 @@ export interface PetMetrics {
 	systemIdleSec: number;  // seconds since last system input
 }
 
+export type ContextMenuResult = 'toggle-coding' | 'quit' | null;
+
 export interface ElectronAPI {
 	quitApp: () => void;
 	setPosition: (x: number, y: number) => void;
 	getState: () => Promise<PetState | null>;
 	onMetricsTick: (listener: (m: PetMetrics) => void) => () => void;
+	showContextMenu: (codingActive: boolean) => Promise<ContextMenuResult>;
 }
 
 declare global {

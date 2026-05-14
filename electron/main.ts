@@ -1,4 +1,4 @@
-import { app, BrowserWindow, screen, ipcMain } from 'electron';
+import { app, BrowserWindow, screen, ipcMain, Menu } from 'electron';
 import * as path from 'path';
 import { startMetricsPoller } from './metrics';
 
@@ -55,6 +55,34 @@ function createPetWindow() {
 
 ipcMain.on('app:quit', () => {
 	app.quit();
+});
+
+// Right-click context menu. The renderer reports whether coding mode is
+// currently overridden so the toggle label can reflect the current state.
+ipcMain.handle('pet:show-menu', async (_event, payload: { codingActive: boolean }) => {
+	return new Promise<'toggle-coding' | 'quit' | null>((resolve) => {
+		let resolved = false;
+		const done = (value: 'toggle-coding' | 'quit' | null) => {
+			if (resolved) return;
+			resolved = true;
+			resolve(value);
+		};
+		const menu = Menu.buildFromTemplate([
+			{
+				label: payload.codingActive ? '코딩 모드 종료' : '코딩 모드 시작',
+				click: () => done('toggle-coding'),
+			},
+			{ type: 'separator' },
+			{
+				label: '코디 재우기 (종료)',
+				click: () => done('quit'),
+			},
+		]);
+		menu.popup({
+			window: petWindow ?? undefined,
+			callback: () => done(null),
+		});
+	});
 });
 
 // Move the pet window to an absolute screen position.

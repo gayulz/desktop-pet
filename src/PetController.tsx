@@ -1,5 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
 import WalkingSprite from './sprites/WalkingSprite';
+import IdleSprite from './sprites/IdleSprite';
+import SleepingSprite from './sprites/SleepingSprite';
+import OverheatedSprite from './sprites/OverheatedSprite';
+import CodingSprite from './sprites/CodingSprite';
 import { deriveState, type PetState } from './state/petState';
 
 // Walk policy
@@ -18,6 +22,7 @@ type WalkMode = 'wide' | 'local';
 const PetController = () => {
 	const [state, setState] = useState<PetState>('walking');
 	const [direction, setDirection] = useState<Direction>(1);
+	const [codingActive, setCodingActive] = useState(false);
 
 	// Latest metrics from main
 	const cpuLoadRef = useRef(0);
@@ -61,6 +66,7 @@ const PetController = () => {
 
 	// Subscribe to system metrics → recompute state.
 	useEffect(() => {
+		const startedAt = performance.now();
 		const unsubscribe = window.electronAPI.onMetricsTick((m) => {
 			cpuLoadRef.current = m.cpuLoad;
 			systemIdleRef.current = m.systemIdleSec;
@@ -68,6 +74,7 @@ const PetController = () => {
 				cpuLoad: m.cpuLoad,
 				systemIdleSec: m.systemIdleSec,
 				manualOverride: manualOverrideRef.current,
+				appUptimeSec: (performance.now() - startedAt) / 1000,
 			});
 			setState((prev) => (prev === next ? prev : next));
 		});
@@ -176,21 +183,43 @@ const PetController = () => {
 		};
 	}, []);
 
-	const handleContextMenu = (e: React.MouseEvent) => {
+	const handleContextMenu = async (e: React.MouseEvent) => {
 		e.preventDefault();
-		if (confirm('코디를 재울까요? (앱 종료)')) {
+		const action = await window.electronAPI.showContextMenu(codingActive);
+		if (action === 'quit') {
 			window.electronAPI.quitApp();
+			return;
+		}
+		if (action === 'toggle-coding') {
+			const next = !codingActive;
+			setCodingActive(next);
+			manualOverrideRef.current = next ? 'coding' : null;
+			// Recompute immediately so Codi reacts before the next metrics tick.
+			// Pass a large uptime so the grace period doesn't override an explicit
+			// toggle from a fresh start.
+			setState(
+				deriveState({
+					cpuLoad: cpuLoadRef.current,
+					systemIdleSec: systemIdleRef.current,
+					manualOverride: manualOverrideRef.current,
+					appUptimeSec: Number.POSITIVE_INFINITY,
+				})
+			);
 		}
 	};
 
-	// Render — Stage 2 ships WalkingSprite only. Other states fall back to it
-	// until Stage 3 wires their dedicated sprites.
 	const renderSprite = () => {
 		switch (state) {
 			case 'walking':
 				return <WalkingSprite direction={direction} />;
-			default:
-				return <WalkingSprite direction={direction} />;
+			case 'idle':
+				return <IdleSprite />;
+			case 'sleeping':
+				return <SleepingSprite />;
+			case 'overheated':
+				return <OverheatedSprite />;
+			case 'coding':
+				return <CodingSprite />;
 		}
 	};
 
