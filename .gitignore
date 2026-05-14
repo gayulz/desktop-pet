@@ -22,3 +22,9 @@ npm-debug.log*
 
 # Original (pre-transparency) PNG backup — local only
 assets/codi-original/
+
+# Internal development notes — kept locally for AI agents / handoff context
+# but not published to the public repository.
+CLAUDE.md
+HANDOFF.md
+START_PROMPT.md
