@@ -18,7 +18,11 @@ export interface AppSettings {
 
 const DEFAULTS: AppSettings = {
 	studyKeywords: ['인프런', 'inflearn', '강의', '학습', '공부'],
-	enableActiveWindow: true,
+	// active-win triggers a macOS accessibility / screen recording dialog on
+	// every poll until the user explicitly grants permission. We default it OFF
+	// so first-run users aren't bombarded — they can turn it on later from the
+	// settings window if they want coding / studying auto-detection.
+	enableActiveWindow: false,
 	enableClaudeWatch: true,
 	enableGitWatch: true,
 };

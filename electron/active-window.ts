@@ -68,14 +68,20 @@ function categorize(bundleId: string, appName: string): AppCategory {
 }
 
 // active-win options:
-// - accessibilityPermission: skipped (we don't need URL, only category)
-// - screenRecordingPermission: true so window titles are actually returned.
-//   If the user has not granted Screen Recording permission, active-win
-//   surfaces an empty title; we treat that as 'studying-unavailable' and the
-//   state machine falls back to Week 2 behaviour for that aspect.
+// Both permissions are disabled so macOS does not show repeated permission
+// dialogs every 2 seconds. The downside: window title comes back as an empty
+// string, which means the 'studying' state cannot be detected (it relies on
+// keyword matching the title). 'coding' detection still works because we
+// classify by bundleId/appName, both of which are available without Screen
+// Recording permission.
+//
+// If the user wants studying detection back, they can flip both options to
+// `true`; macOS will then prompt for permission once and from then on titles
+// will be returned. We deliberately do not expose this in the UI yet — the
+// noisy dialog UX needs more thought first.
 const ACTIVE_WIN_OPTIONS = {
 	accessibilityPermission: false,
-	screenRecordingPermission: true,
+	screenRecordingPermission: false,
 } as const;
 
 let permissionWarningShown = false;
