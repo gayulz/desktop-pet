@@ -1,7 +1,7 @@
-import WalkingCodi from './components/WalkingCodi';
+import PetController from './PetController';
 
 function App() {
-	return <WalkingCodi />;
+	return <PetController />;
 }
 
 export default App;

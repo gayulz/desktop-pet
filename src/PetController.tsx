@@ -1,78 +1,80 @@
 import { useEffect, useRef, useState } from 'react';
-import walkSheet from '../../assets/codi/walk-sheet.png';
+import WalkingSprite from './sprites/WalkingSprite';
+import { deriveState, type PetState } from './state/petState';
 
-// walk-sheet.png is 2508x627 — 4 frames of 627x627 laid out horizontally.
-// Rendered at 128x128 → CSS background sized to (128*4)x128 = 512x128.
-const FRAME_COUNT = 4;
-const FRAME_SIZE = 128;
-const SHEET_WIDTH = FRAME_SIZE * FRAME_COUNT;
-const FRAME_INTERVAL_MS = 200;
-
-// Wide walk: one-way 8s across 60% of the screen width.
+// Walk policy
 const WIDE_WALK_DURATION_MS = 8000;
-// Local walk (after drag): ±100px from the drag-drop point, one-way 4s.
 const LOCAL_HALF_WIDTH = 100;
 const LOCAL_WALK_DURATION_MS = 4000;
-
 const MOVE_TICK_MS = 33;
 
-// Falling physics. Tuned so a 600px fall lands in roughly 1.5s.
+// Falling physics
 const GRAVITY_PX_PER_S2 = 1600;
 const MAX_FALL_SPEED_PX_PER_S = 1400;
 
 type Direction = 1 | -1;
-type WalkMode = 'wide' | 'local' | 'falling';
+type WalkMode = 'wide' | 'local';
 
-const WalkingCodi = () => {
-	const [frame, setFrame] = useState(0);
+const PetController = () => {
+	const [state, setState] = useState<PetState>('walking');
 	const [direction, setDirection] = useState<Direction>(1);
 
-	// Walk loop state held in refs to avoid re-rendering on every tick.
+	// Latest metrics from main
+	const cpuLoadRef = useRef(0);
+	const systemIdleRef = useRef(0);
+	const manualOverrideRef = useRef<PetState | null>(null);
+
+	// Position state
 	const centerXRef = useRef<number | null>(null);
-	// Current Y of the window. Walking keeps this constant; dragging updates it.
 	const currentYRef = useRef<number | null>(null);
-	// Floor Y reported by main — the row where Codi can walk.
 	const floorYRef = useRef<number | null>(null);
+	const walkModeRef = useRef<WalkMode>('wide');
 	const halfWidthRef = useRef(0);
-	const durationRef = useRef(WIDE_WALK_DURATION_MS);
-	const progressRef = useRef(0.5); // 0..1, where 0.5 is dead center
+	const walkDurationRef = useRef(WIDE_WALK_DURATION_MS);
+	const progressRef = useRef(0.5);
 	const directionRef = useRef<Direction>(1);
-	const lastTickRef = useRef(performance.now());
-	const modeRef = useRef<WalkMode>('wide');
-	// Vertical velocity used only while in 'falling' mode.
 	const fallVelocityRef = useRef(0);
+	const fallingRef = useRef(false);
+	const lastTickRef = useRef(performance.now());
 
 	// Drag state
 	const draggingRef = useRef(false);
 	const dragOffsetXRef = useRef(0);
 	const dragOffsetYRef = useRef(0);
 
-	// Initialize walk parameters from the main process.
+	// Init from main
 	useEffect(() => {
 		let cancelled = false;
-		window.electronAPI.getState().then((state) => {
-			if (cancelled || !state) return;
-			const walkWidth = state.screenWidth * (1 - 2 * state.walkMarginRatio);
-			centerXRef.current = state.screenWidth / 2 - state.petSize / 2;
-			currentYRef.current = state.floorY;
-			floorYRef.current = state.floorY;
+		window.electronAPI.getState().then((s) => {
+			if (cancelled || !s) return;
+			const walkWidth = s.screenWidth * (1 - 2 * s.walkMarginRatio);
+			centerXRef.current = s.screenWidth / 2 - s.petSize / 2;
+			currentYRef.current = s.floorY;
+			floorYRef.current = s.floorY;
 			halfWidthRef.current = walkWidth / 2;
-			durationRef.current = WIDE_WALK_DURATION_MS;
+			walkDurationRef.current = WIDE_WALK_DURATION_MS;
 		});
 		return () => {
 			cancelled = true;
 		};
 	}, []);
 
-	// Sprite frame cycle.
+	// Subscribe to system metrics → recompute state.
 	useEffect(() => {
-		const id = setInterval(() => {
-			setFrame((f) => (f + 1) % FRAME_COUNT);
-		}, FRAME_INTERVAL_MS);
-		return () => clearInterval(id);
+		const unsubscribe = window.electronAPI.onMetricsTick((m) => {
+			cpuLoadRef.current = m.cpuLoad;
+			systemIdleRef.current = m.systemIdleSec;
+			const next = deriveState({
+				cpuLoad: m.cpuLoad,
+				systemIdleSec: m.systemIdleSec,
+				manualOverride: manualOverrideRef.current,
+			});
+			setState((prev) => (prev === next ? prev : next));
+		});
+		return unsubscribe;
 	}, []);
 
-	// Walk loop: advance progress along the current range and push X to main.
+	// Main physics/walk loop.
 	useEffect(() => {
 		let rafId = 0;
 
@@ -85,8 +87,8 @@ const WalkingCodi = () => {
 				currentYRef.current !== null &&
 				floorYRef.current !== null
 			) {
-				if (modeRef.current === 'falling') {
-					// Gravity-driven descent. X stays put while Codi falls.
+				if (fallingRef.current) {
+					// Gravity descent. X frozen until landing.
 					const dtSec = dt / 1000;
 					fallVelocityRef.current = Math.min(
 						fallVelocityRef.current + GRAVITY_PX_PER_S2 * dtSec,
@@ -95,17 +97,16 @@ const WalkingCodi = () => {
 					let newY = currentYRef.current + fallVelocityRef.current * dtSec;
 					if (newY >= floorYRef.current) {
 						newY = floorYRef.current;
-						modeRef.current = 'local';
+						fallingRef.current = false;
 						fallVelocityRef.current = 0;
 						progressRef.current = 0.5;
 					}
 					currentYRef.current = newY;
 					window.electronAPI.setPosition(centerXRef.current, newY);
-				} else {
-					// 'wide' or 'local' — horizontal back-and-forth at fixed Y.
-					const delta = (dt / durationRef.current) * directionRef.current;
+				} else if (state === 'walking') {
+					// Horizontal back-and-forth at fixed Y.
+					const delta = (dt / walkDurationRef.current) * directionRef.current;
 					let next = progressRef.current + delta;
-
 					if (next >= 1) {
 						next = 1;
 						directionRef.current = -1;
@@ -115,12 +116,13 @@ const WalkingCodi = () => {
 						directionRef.current = 1;
 						setDirection(1);
 					}
-
 					progressRef.current = next;
 					const offset = (next - 0.5) * 2 * halfWidthRef.current;
 					const x = centerXRef.current + offset;
 					window.electronAPI.setPosition(x, currentYRef.current);
 				}
+				// In any other state (idle/sleeping/overheated/coding) we hold
+				// the current window position — no setPosition call needed.
 				lastTickRef.current = now;
 			}
 			rafId = requestAnimationFrame(tick);
@@ -128,18 +130,17 @@ const WalkingCodi = () => {
 
 		rafId = requestAnimationFrame(tick);
 		return () => cancelAnimationFrame(rafId);
-	}, []);
+	}, [state]);
 
+	// Drag handlers
 	const handleMouseDown = async (e: React.MouseEvent) => {
-		if (e.button !== 0) return; // left click only
+		if (e.button !== 0) return;
 		e.preventDefault();
-		const state = await window.electronAPI.getState();
-		if (!state) return;
+		const s = await window.electronAPI.getState();
+		if (!s) return;
 		draggingRef.current = true;
-		// Remember where in the window the cursor grabbed Codi, so the window
-		// follows the cursor without jumping on either axis.
-		dragOffsetXRef.current = e.screenX - state.x;
-		dragOffsetYRef.current = e.screenY - state.y;
+		dragOffsetXRef.current = e.screenX - s.x;
+		dragOffsetYRef.current = e.screenY - s.y;
 	};
 
 	useEffect(() => {
@@ -150,23 +151,21 @@ const WalkingCodi = () => {
 			window.electronAPI.setPosition(newX, newY);
 		};
 
-		const handleMouseUp = async (e: MouseEvent) => {
+		const handleMouseUp = async () => {
 			if (!draggingRef.current) return;
 			draggingRef.current = false;
-			const state = await window.electronAPI.getState();
-			if (!state) return;
-			centerXRef.current = state.x;
-			currentYRef.current = state.y;
-			floorYRef.current = state.floorY;
+			const s = await window.electronAPI.getState();
+			if (!s) return;
+			centerXRef.current = s.x;
+			currentYRef.current = s.y;
+			floorYRef.current = s.floorY;
 			halfWidthRef.current = LOCAL_HALF_WIDTH;
-			durationRef.current = LOCAL_WALK_DURATION_MS;
+			walkDurationRef.current = LOCAL_WALK_DURATION_MS;
 			progressRef.current = 0.5;
-			lastTickRef.current = performance.now();
 			fallVelocityRef.current = 0;
-			// If dropped above the floor, fall under gravity before resuming walking.
-			// A small tolerance avoids triggering falling for sub-pixel drift.
-			modeRef.current = state.y < state.floorY - 2 ? 'falling' : 'local';
-			void e;
+			walkModeRef.current = 'local';
+			fallingRef.current = s.y < s.floorY - 2;
+			lastTickRef.current = performance.now();
 		};
 
 		window.addEventListener('mousemove', handleMouseMove);
@@ -184,6 +183,17 @@ const WalkingCodi = () => {
 		}
 	};
 
+	// Render — Stage 2 ships WalkingSprite only. Other states fall back to it
+	// until Stage 3 wires their dedicated sprites.
+	const renderSprite = () => {
+		switch (state) {
+			case 'walking':
+				return <WalkingSprite direction={direction} />;
+			default:
+				return <WalkingSprite direction={direction} />;
+		}
+	};
+
 	return (
 		<div
 			onMouseDown={handleMouseDown}
@@ -197,22 +207,9 @@ const WalkingCodi = () => {
 				cursor: 'grab',
 			}}
 		>
-			<div
-				style={{
-					width: FRAME_SIZE,
-					height: FRAME_SIZE,
-					backgroundImage: `url(${walkSheet})`,
-					backgroundSize: `${SHEET_WIDTH}px ${FRAME_SIZE}px`,
-					backgroundPosition: `-${frame * FRAME_SIZE}px 0px`,
-					backgroundRepeat: 'no-repeat',
-					// Sprite faces left by default; flip when walking right.
-					transform: direction === 1 ? 'scaleX(-1)' : 'scaleX(1)',
-					filter: 'drop-shadow(0 4px 6px rgba(0,0,0,0.25))',
-					pointerEvents: 'none',
-				}}
-			/>
+			{renderSprite()}
 		</div>
 	);
 };
 
-export default WalkingCodi;
+export default PetController;
