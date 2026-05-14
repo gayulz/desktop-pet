@@ -1,0 +1,33 @@
+{
+  "name": "codi",
+  "version": "0.1.0",
+  "description": "노란 레서팬더 데스크톱 펫",
+  "author": "유우리",
+  "type": "commonjs",
+  "main": "dist-electron/main.js",
+  "scripts": {
+    "dev": "vite",
+    "electron:compile": "tsc -p electron/tsconfig.json",
+    "electron:dev": "wait-on tcp:5173 && npm run electron:compile && electron .",
+    "start": "concurrently -k \"npm run dev\" \"npm run electron:dev\"",
+    "build:renderer": "tsc && vite build",
+    "build:electron": "tsc -p electron/tsconfig.json",
+    "build": "npm run build:renderer && npm run build:electron && electron-builder",
+    "build:mac": "npm run build:renderer && npm run build:electron && electron-builder --mac"
+  },
+  "dependencies": {
+    "react": "^19.2.6",
+    "react-dom": "^19.2.6"
+  },
+  "devDependencies": {
+    "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^4.7.0",
+    "concurrently": "^9.2.1",
+    "electron": "^31.7.7",
+    "electron-builder": "^24.13.3",
+    "typescript": "^5.9.3",
+    "vite": "^5.4.21",
+    "wait-on": "^9.0.10"
+  }
+}

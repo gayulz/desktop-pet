@@ -1,0 +1,55 @@
+* {
+	margin: 0;
+	padding: 0;
+	box-sizing: border-box;
+}
+
+html, body, #root {
+	width: 100vw;
+	height: 100vh;
+	background: transparent;
+	overflow: hidden;
+	user-select: none;
+}
+
+/* Codi is rendered from high-resolution illustrations (1254x1254),
+   so we let the browser smooth-scale the image rather than forcing
+   pixelated nearest-neighbor scaling. */
+img {
+	image-rendering: auto;
+}
+
+/* Week 1: idle bounce */
+@keyframes bounce {
+	0%, 100% { transform: translateY(0); }
+	50% { transform: translateY(-8px); }
+}
+
+.pet-idle {
+	animation: bounce 1s ease-in-out infinite;
+}
+
+/* Week 2+ animations pre-defined */
+@keyframes shake {
+	0%, 100% { transform: translateX(0); }
+	33% { transform: translateX(-3px); }
+	66% { transform: translateX(3px); }
+}
+@keyframes breathe {
+	0%, 100% { transform: scale(1); }
+	50% { transform: scale(1.03); }
+}
+@keyframes jump {
+	0%, 100% { transform: translateY(0); }
+	50% { transform: translateY(-12px); }
+}
+@keyframes float {
+	0%, 100% { transform: translateY(0); }
+	50% { transform: translateY(-4px); }
+}
+
+.pet-overheated { animation: shake 0.3s steps(3) infinite; }
+.pet-sleeping { animation: breathe 3s ease-in-out infinite; }
+.pet-studying { animation: breathe 3s ease-in-out infinite; }
+.pet-celebrating { animation: jump 0.5s steps(2) infinite; }
+.pet-ai-mode { animation: float 2s ease-in-out infinite; }
