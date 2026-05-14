@@ -1,14 +1,17 @@
 import { app, BrowserWindow, screen, ipcMain } from 'electron';
 import * as path from 'path';
+import { startMetricsPoller } from './metrics';
 
 const isDev = !app.isPackaged;
 let petWindow: BrowserWindow | null = null;
+let stopMetrics: (() => void) | null = null;
 
 const PET_SIZE = 220;
 // Walk range: 60% of screen width, centered horizontally.
 // 20% margin on each side keeps Codi out of the screen edges.
 const WALK_MARGIN_RATIO = 0.2;
 const BOTTOM_OFFSET = 50;
+const METRICS_INTERVAL_MS = 5000;
 
 function createPetWindow() {
 	const { width: sw, height: sh } = screen.getPrimaryDisplay().workAreaSize;
@@ -84,11 +87,22 @@ ipcMain.handle('pet:get-state', () => {
 app.whenReady().then(() => {
 	createPetWindow();
 
+	// Broadcast system metrics to the renderer at a fixed cadence.
+	stopMetrics = startMetricsPoller(METRICS_INTERVAL_MS, (m) => {
+		if (petWindow && !petWindow.isDestroyed()) {
+			petWindow.webContents.send('pet:metrics-tick', m);
+		}
+	});
+
 	app.on('activate', () => {
 		if (BrowserWindow.getAllWindows().length === 0) {
 			createPetWindow();
 		}
 	});
+});
+
+app.on('before-quit', () => {
+	if (stopMetrics) stopMetrics();
 });
 
 app.on('window-all-closed', () => {

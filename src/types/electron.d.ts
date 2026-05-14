@@ -10,10 +10,16 @@ export interface PetState {
 	floorY: number;
 }
 
+export interface PetMetrics {
+	cpuLoad: number;        // 0..100
+	systemIdleSec: number;  // seconds since last system input
+}
+
 export interface ElectronAPI {
 	quitApp: () => void;
 	setPosition: (x: number, y: number) => void;
 	getState: () => Promise<PetState | null>;
+	onMetricsTick: (listener: (m: PetMetrics) => void) => () => void;
 }
 
 declare global {
