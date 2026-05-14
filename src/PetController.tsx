@@ -4,7 +4,9 @@ import IdleSprite from './sprites/IdleSprite';
 import SleepingSprite from './sprites/SleepingSprite';
 import OverheatedSprite from './sprites/OverheatedSprite';
 import CodingSprite from './sprites/CodingSprite';
+import StudyingSprite from './sprites/StudyingSprite';
 import { deriveState, type PetState } from './state/petState';
+import type { AppCategory } from './types/electron';
 
 // Walk policy
 const WIDE_WALK_DURATION_MS = 8000;
@@ -28,6 +30,9 @@ const PetController = () => {
 	const cpuLoadRef = useRef(0);
 	const systemIdleRef = useRef(0);
 	const manualOverrideRef = useRef<PetState | null>(null);
+	// Latest active window info from main
+	const activeAppCategoryRef = useRef<AppCategory>('unknown');
+	const activeWindowTitleRef = useRef('');
 
 	// Position state
 	const centerXRef = useRef<number | null>(null);
@@ -64,21 +69,39 @@ const PetController = () => {
 		};
 	}, []);
 
-	// Subscribe to system metrics → recompute state.
+	// Subscribe to system metrics and active-window changes — both trigger
+	// state recomputation. We store the most recent values in refs so either
+	// subscriber can produce a fresh state with the latest of everything.
 	useEffect(() => {
 		const startedAt = performance.now();
-		const unsubscribe = window.electronAPI.onMetricsTick((m) => {
-			cpuLoadRef.current = m.cpuLoad;
-			systemIdleRef.current = m.systemIdleSec;
+
+		const recompute = () => {
 			const next = deriveState({
-				cpuLoad: m.cpuLoad,
-				systemIdleSec: m.systemIdleSec,
+				cpuLoad: cpuLoadRef.current,
+				systemIdleSec: systemIdleRef.current,
 				manualOverride: manualOverrideRef.current,
 				appUptimeSec: (performance.now() - startedAt) / 1000,
+				activeAppCategory: activeAppCategoryRef.current,
+				activeWindowTitle: activeWindowTitleRef.current,
 			});
 			setState((prev) => (prev === next ? prev : next));
+		};
+
+		const offMetrics = window.electronAPI.onMetricsTick((m) => {
+			cpuLoadRef.current = m.cpuLoad;
+			systemIdleRef.current = m.systemIdleSec;
+			recompute();
 		});
-		return unsubscribe;
+		const offActive = window.electronAPI.onActiveWindowTick((info) => {
+			activeAppCategoryRef.current = info.category;
+			activeWindowTitleRef.current = info.title;
+			recompute();
+		});
+
+		return () => {
+			offMetrics();
+			offActive();
+		};
 	}, []);
 
 	// Main physics/walk loop.
@@ -203,6 +226,8 @@ const PetController = () => {
 					systemIdleSec: systemIdleRef.current,
 					manualOverride: manualOverrideRef.current,
 					appUptimeSec: Number.POSITIVE_INFINITY,
+					activeAppCategory: activeAppCategoryRef.current,
+					activeWindowTitle: activeWindowTitleRef.current,
 				})
 			);
 		}
@@ -220,6 +245,11 @@ const PetController = () => {
 				return <OverheatedSprite />;
 			case 'coding':
 				return <CodingSprite />;
+			case 'studying':
+				return <StudyingSprite />;
+			case 'celebrating':
+				// Reserved for Stage 2 — fall back to walking so we don't crash.
+				return <WalkingSprite direction={direction} />;
 		}
 	};
 

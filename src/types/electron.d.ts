@@ -11,8 +11,17 @@ export interface PetState {
 }
 
 export interface PetMetrics {
-	cpuLoad: number;        // 0..100
-	systemIdleSec: number;  // seconds since last system input
+	cpuLoad: number;
+	systemIdleSec: number;
+}
+
+export type AppCategory = 'editor' | 'terminal' | 'browser' | 'unknown';
+
+export interface ActiveWindowInfo {
+	title: string;
+	appName: string;
+	bundleId: string;
+	category: AppCategory;
 }
 
 export type ContextMenuResult = 'toggle-coding' | 'quit' | null;
@@ -22,6 +31,7 @@ export interface ElectronAPI {
 	setPosition: (x: number, y: number) => void;
 	getState: () => Promise<PetState | null>;
 	onMetricsTick: (listener: (m: PetMetrics) => void) => () => void;
+	onActiveWindowTick: (listener: (info: ActiveWindowInfo) => void) => () => void;
 	showContextMenu: (codingActive: boolean) => Promise<ContextMenuResult>;
 }
 

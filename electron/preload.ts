@@ -6,6 +6,15 @@ export interface PetMetrics {
 	systemIdleSec: number;
 }
 
+export type AppCategory = 'editor' | 'terminal' | 'browser' | 'unknown';
+
+export interface ActiveWindowInfo {
+	title: string;
+	appName: string;
+	bundleId: string;
+	category: AppCategory;
+}
+
 contextBridge.exposeInMainWorld('electronAPI', {
 	quitApp: () => ipcRenderer.send('app:quit'),
 	setPosition: (x: number, y: number) => ipcRenderer.send('pet:set-position', x, y),
@@ -14,6 +23,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
 		const wrapped = (_e: IpcRendererEvent, m: PetMetrics) => listener(m);
 		ipcRenderer.on('pet:metrics-tick', wrapped);
 		return () => ipcRenderer.removeListener('pet:metrics-tick', wrapped);
+	},
+	onActiveWindowTick: (listener: (info: ActiveWindowInfo) => void) => {
+		const wrapped = (_e: IpcRendererEvent, info: ActiveWindowInfo) => listener(info);
+		ipcRenderer.on('pet:active-window-tick', wrapped);
+		return () => ipcRenderer.removeListener('pet:active-window-tick', wrapped);
 	},
 	showContextMenu: (codingActive: boolean): Promise<'toggle-coding' | 'quit' | null> =>
 		ipcRenderer.invoke('pet:show-menu', { codingActive }),

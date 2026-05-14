@@ -1,10 +1,12 @@
 import { app, BrowserWindow, screen, ipcMain, Menu } from 'electron';
 import * as path from 'path';
 import { startMetricsPoller } from './metrics';
+import { startActiveWindowPoller } from './active-window';
 
 const isDev = !app.isPackaged;
 let petWindow: BrowserWindow | null = null;
 let stopMetrics: (() => void) | null = null;
+let stopActiveWindow: (() => void) | null = null;
 
 const PET_SIZE = 220;
 // Walk range: 60% of screen width, centered horizontally.
@@ -12,6 +14,7 @@ const PET_SIZE = 220;
 const WALK_MARGIN_RATIO = 0.2;
 const BOTTOM_OFFSET = 50;
 const METRICS_INTERVAL_MS = 5000;
+const ACTIVE_WINDOW_INTERVAL_MS = 2000;
 
 function createPetWindow() {
 	const { width: sw, height: sh } = screen.getPrimaryDisplay().workAreaSize;
@@ -122,6 +125,13 @@ app.whenReady().then(() => {
 		}
 	});
 
+	// Broadcast active window changes (deduplicated by the poller).
+	stopActiveWindow = startActiveWindowPoller(ACTIVE_WINDOW_INTERVAL_MS, (info) => {
+		if (petWindow && !petWindow.isDestroyed()) {
+			petWindow.webContents.send('pet:active-window-tick', info);
+		}
+	});
+
 	app.on('activate', () => {
 		if (BrowserWindow.getAllWindows().length === 0) {
 			createPetWindow();
@@ -131,6 +141,7 @@ app.whenReady().then(() => {
 
 app.on('before-quit', () => {
 	if (stopMetrics) stopMetrics();
+	if (stopActiveWindow) stopActiveWindow();
 });
 
 app.on('window-all-closed', () => {
