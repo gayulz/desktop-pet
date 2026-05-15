@@ -11,9 +11,15 @@
  *   5. meeting               — foreground app is a video-conferencing app
  *                              (Zoom / Teams / Google Meet etc.); higher than
  *                              ai_mode so a live call beats background AI work
- *   6. ai_mode (auto)        — recent ~/.claude/ jsonl activity within window
- *   7. studying              — active window title contains a study keyword
- *   8. coding                — active app is an editor/terminal AND user is active
+ *   6. studying              — active window title contains a study keyword
+ *                              AND active app is a browser. Promoted above
+ *                              ai_mode so a long-lived Claude Desktop session
+ *                              doesn't block studying when the user is
+ *                              actively on Inflearn/Udemy.
+ *   7. coding                — active app is an editor/terminal AND user is active
+ *   8. ai_mode (auto)        — recent ~/.claude/ jsonl activity within window;
+ *                              only fires when the user's foreground activity
+ *                              is unambiguous (no studying/coding match)
  *   9. sleeping              — no input for SLEEP_AFTER_SEC
  *  10. walking (grace/idle<) — startup grace OR recent input
  *  11. idle                  — quiet but awake
@@ -63,8 +69,11 @@ export const CODING_IDLE_THRESHOLD_SEC = 60;
 // celebrating window after a commit lands.
 export const CELEBRATE_DURATION_MS = 3000;
 // ai_mode window — Codi stays in the wizard pose this long after the last
-// ~/.claude/ jsonl change. Tuned to "Claude is still working on something".
-export const AI_ACTIVITY_WINDOW_MS = 5 * 60 * 1000;
+// ~/.claude/ jsonl change. Shortened from 5 min to 90 s so a long-lived
+// Claude Desktop session doesn't pin Codi to ai_mode forever and block
+// studying/coding transitions when the user actually switches focus to
+// Inflearn or VSCode.
+export const AI_ACTIVITY_WINDOW_MS = 90 * 1000;
 
 // Title-based study detection. Matches learning platforms broadly so YouTube
 // tutorials, Coursera, Udemy etc. count as studying too — not just Inflearn.
@@ -97,14 +106,17 @@ export function deriveState(ctx: PetContext): PetState {
 	}
 	if (ctx.cpuLoad > OVERHEATED_CPU_THRESHOLD) return 'overheated';
 	if (ctx.activeAppCategory === 'meeting') return 'meeting';
+	// studying/coding are checked BEFORE ai_mode so the user's foreground
+	// activity (Inflearn tab, VSCode) wins over a long-lived background
+	// Claude session that keeps appending to the jsonl.
+	if (isStudying(ctx.activeWindowTitle, ctx.activeAppCategory, ctx.studyKeywords)) return 'studying';
+	if (isCoding(ctx.activeAppCategory, ctx.systemIdleSec)) return 'coding';
 	if (
 		ctx.lastAiActivityAtMs !== null &&
 		ctx.nowMs - ctx.lastAiActivityAtMs < AI_ACTIVITY_WINDOW_MS
 	) {
 		return 'ai_mode';
 	}
-	if (isStudying(ctx.activeWindowTitle, ctx.activeAppCategory, ctx.studyKeywords)) return 'studying';
-	if (isCoding(ctx.activeAppCategory, ctx.systemIdleSec)) return 'coding';
 	if (ctx.systemIdleSec > SLEEP_AFTER_SEC) return 'sleeping';
 	if (ctx.appUptimeSec < STARTUP_WALK_GRACE_SEC) return 'walking';
 	if (ctx.systemIdleSec < WALK_BELOW_SEC) return 'walking';
