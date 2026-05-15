@@ -3,11 +3,58 @@
 // coding, studying, or just idling.
 //
 // macOS Screen Recording permission is required to read window titles. If the
-// user has not granted it, active-win returns objects with an empty title.
+// user has not granted it, get-windows returns objects with an empty title.
 // We surface that by setting category to 'unknown' so the state machine can
 // fall back to Week 2 behaviour.
+//
+// get-windows is ESM-only. The electron tsconfig targets CommonJS, so a
+// plain `await import('get-windows')` would be transpiled to require() and
+// crash at runtime. We use a Function() indirection so TypeScript leaves the
+// dynamic import untouched and Node performs a real ESM import at runtime.
 
-import activeWindow from 'active-win';
+type GetWindowsOptions = {
+	accessibilityPermission?: boolean;
+	screenRecordingPermission?: boolean;
+};
+
+type GetWindowsOwner = {
+	name?: string;
+	processId?: number;
+	bundleId?: string;
+};
+
+type GetWindowsResult = {
+	title?: string;
+	owner?: GetWindowsOwner;
+};
+
+type ActiveWindowFn = (
+	options?: GetWindowsOptions
+) => Promise<GetWindowsResult | undefined>;
+
+const dynamicImport = new Function(
+	'specifier',
+	'return import(specifier);'
+) as (specifier: string) => Promise<unknown>;
+
+let cachedActiveWindow: ActiveWindowFn | null = null;
+let importFailed = false;
+
+async function loadActiveWindow(): Promise<ActiveWindowFn | null> {
+	if (cachedActiveWindow) return cachedActiveWindow;
+	if (importFailed) return null;
+	try {
+		const mod = (await dynamicImport('get-windows')) as {
+			activeWindow: ActiveWindowFn;
+		};
+		cachedActiveWindow = mod.activeWindow;
+		return cachedActiveWindow;
+	} catch (err) {
+		importFailed = true;
+		console.warn('[active-window] get-windows import failed:', err);
+		return null;
+	}
+}
 
 export type AppCategory = 'editor' | 'terminal' | 'browser' | 'meeting' | 'unknown';
 
@@ -110,7 +157,7 @@ function categorize(bundleId: string, appName: string, title: string): AppCatego
 	return 'unknown';
 }
 
-// active-win options:
+// get-windows options:
 // Both permissions are disabled so macOS does not show repeated permission
 // dialogs every 2 seconds. The downside: window title comes back as an empty
 // string, which means the 'studying' state cannot be detected (it relies on
@@ -122,35 +169,36 @@ function categorize(bundleId: string, appName: string, title: string): AppCatego
 // `true`; macOS will then prompt for permission once and from then on titles
 // will be returned. We deliberately do not expose this in the UI yet — the
 // noisy dialog UX needs more thought first.
-const ACTIVE_WIN_OPTIONS = {
+const ACTIVE_WIN_OPTIONS: GetWindowsOptions = {
 	accessibilityPermission: false,
 	screenRecordingPermission: false,
-} as const;
+};
 
 let permissionWarningShown = false;
+const EMPTY: ActiveWindowInfo = { title: '', appName: '', bundleId: '', category: 'unknown' };
 
 async function sample(): Promise<ActiveWindowInfo> {
-	let win;
+	const activeWindow = await loadActiveWindow();
+	if (!activeWindow) return EMPTY;
+	let win: GetWindowsResult | undefined;
 	try {
 		win = await activeWindow(ACTIVE_WIN_OPTIONS);
 	} catch (err) {
 		if (!permissionWarningShown) {
 			permissionWarningShown = true;
 			console.warn(
-				'[active-window] active-win unavailable. Auto-detection of coding/studying ' +
+				'[active-window] get-windows unavailable. Auto-detection of coding/studying ' +
 					'will be disabled. Grant Accessibility permission to Electron and restart to enable.'
 			);
 			console.warn('[active-window] original error:', err);
 		}
-		return { title: '', appName: '', bundleId: '', category: 'unknown' };
+		return EMPTY;
 	}
-	if (!win) {
-		return { title: '', appName: '', bundleId: '', category: 'unknown' };
-	}
-	const owner = win.owner ?? { name: '', processId: 0 };
-	const bundleId = ('bundleId' in owner ? (owner as { bundleId?: string }).bundleId : '') || '';
-	const appName = owner.name || '';
-	const title = win.title || '';
+	if (!win) return EMPTY;
+	const owner = win.owner ?? {};
+	const bundleId = owner.bundleId ?? '';
+	const appName = owner.name ?? '';
+	const title = win.title ?? '';
 	return { title, appName, bundleId, category: categorize(bundleId, appName, title) };
 }
 
