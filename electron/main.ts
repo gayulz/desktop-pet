@@ -38,8 +38,11 @@ let settingsWindow: BrowserWindow | null = null;
 const PET_SIZE = 220;
 // Window is wider than Codi's sprite area so the speech bubble has room to
 // sit at Codi's top-right without spawning a second BrowserWindow. The extra
-// columns are transparent when no bubble is showing.
-const WINDOW_WIDTH = 360;
+// columns are transparent when no bubble is showing. 320 keeps the bubble
+// tucked close to Codi visually — wider values (e.g., 360) made the bubble
+// look detached because the right transparent column was bigger than the
+// gap users perceive as "next to Codi".
+const WINDOW_WIDTH = 320;
 // Walk range: 60% of screen width, centered horizontally.
 // 20% margin on each side keeps Codi out of the screen edges.
 const WALK_MARGIN_RATIO = 0.2;

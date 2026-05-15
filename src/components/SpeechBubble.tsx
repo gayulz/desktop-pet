@@ -14,14 +14,15 @@ interface Props {
 	onDismiss: () => void;
 }
 
-// Window 360x220, Codi sprite occupies the left 220px column. Codi's right
-// edge sits around x=174 (window left). Anchor the bubble just to the right
-// of Codi (left=178) and lift it so the tail points at Codi's upper face.
+// Window 320x220, Codi sprite occupies the left 220px column. The visible
+// Codi body (PNG content bbox is ~93% of the 128px sprite) actually ends near
+// x≈165, not at the full sprite box (x=174). Pull the bubble in so it visually
+// hugs Codi's cheek instead of floating in the transparent space.
 const wrapperStyle: CSSProperties = {
 	position: 'absolute',
-	left: 178,
+	left: 150,
 	top: 30,
-	width: 170,
+	width: 150,
 	maxHeight: 150,
 	background: 'rgba(255, 255, 255, 0.96)',
 	color: '#1f2937',
@@ -53,15 +54,17 @@ const bodyStyle: CSSProperties = {
 };
 
 // Speech-bubble tail pointing toward Codi (sits to the left of the bubble).
+// Tip pokes 8px to the left of the bubble so the arrow seems to actually
+// touch Codi's cheek rather than floating in space.
 const tailStyle: CSSProperties = {
 	position: 'absolute',
-	left: -6,
-	top: 18,
+	left: -8,
+	top: 22,
 	width: 0,
 	height: 0,
-	borderTop: '6px solid transparent',
-	borderBottom: '6px solid transparent',
-	borderRight: '7px solid rgba(255, 255, 255, 0.96)',
+	borderTop: '7px solid transparent',
+	borderBottom: '7px solid transparent',
+	borderRight: '9px solid rgba(255, 255, 255, 0.96)',
 };
 
 const SpeechBubble = ({ title, body, onDismiss }: Props) => {
