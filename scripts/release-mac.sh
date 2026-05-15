@@ -130,13 +130,14 @@ info "Release notes prepared at $NOTES_TMP"
 
 # ----- gh release create -----------------------------------------------------
 
-EXTRA_ARGS=()
+# macOS ships bash 3.2 by default, where "${arr[@]}" on an empty array
+# trips `set -u` (unbound variable). Build the full command array up front
+# so we never have to expand a maybe-empty array.
 if [[ "${RELEASE_DRAFT:-0}" == "1" ]]; then
-	EXTRA_ARGS+=("--draft")
+	CREATE_CMD=(gh release create "$TAG" --title "Codi $TAG" --notes-file "$NOTES_TMP" --draft)
+else
+	CREATE_CMD=(gh release create "$TAG" --title "Codi $TAG" --notes-file "$NOTES_TMP")
 fi
-
-# Use an array to keep the command auditable in dry-run mode.
-CREATE_CMD=(gh release create "$TAG" --title "Codi $TAG" --notes-file "$NOTES_TMP" "${EXTRA_ARGS[@]}")
 UPLOAD_CMD=(gh release upload "$TAG" "$ARM64_DMG" "$X64_DMG" --clobber)
 
 if [[ "${RELEASE_DRY_RUN:-0}" == "1" ]]; then
