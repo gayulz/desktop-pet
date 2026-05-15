@@ -8,12 +8,15 @@
  *                              the user clicks Codi to dismiss
  *   3. celebrating           — within CELEBRATE_DURATION_MS of a git commit
  *   4. overheated            — CPU sustained over the threshold
- *   5. ai_mode (auto)        — recent ~/.claude/ jsonl activity within window
- *   6. studying              — active window title contains a study keyword
- *   7. coding                — active app is an editor/terminal AND user is active
- *   8. sleeping              — no input for SLEEP_AFTER_SEC
- *   9. walking (grace/idle<) — startup grace OR recent input
- *  10. idle                  — quiet but awake
+ *   5. meeting               — foreground app is a video-conferencing app
+ *                              (Zoom / Teams / Google Meet etc.); higher than
+ *                              ai_mode so a live call beats background AI work
+ *   6. ai_mode (auto)        — recent ~/.claude/ jsonl activity within window
+ *   7. studying              — active window title contains a study keyword
+ *   8. coding                — active app is an editor/terminal AND user is active
+ *   9. sleeping              — no input for SLEEP_AFTER_SEC
+ *  10. walking (grace/idle<) — startup grace OR recent input
+ *  11. idle                  — quiet but awake
  */
 
 import type { AppCategory } from '../types/electron';
@@ -27,7 +30,8 @@ export type PetState =
 	| 'overheated'
 	| 'celebrating'
 	| 'ai_mode'
-	| 'notice';
+	| 'notice'
+	| 'meeting';
 
 export interface PetContext {
 	cpuLoad: number;
@@ -92,6 +96,7 @@ export function deriveState(ctx: PetContext): PetState {
 		return 'celebrating';
 	}
 	if (ctx.cpuLoad > OVERHEATED_CPU_THRESHOLD) return 'overheated';
+	if (ctx.activeAppCategory === 'meeting') return 'meeting';
 	if (
 		ctx.lastAiActivityAtMs !== null &&
 		ctx.nowMs - ctx.lastAiActivityAtMs < AI_ACTIVITY_WINDOW_MS

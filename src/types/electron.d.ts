@@ -15,7 +15,7 @@ export interface PetMetrics {
 	systemIdleSec: number;
 }
 
-export type AppCategory = 'editor' | 'terminal' | 'browser' | 'unknown';
+export type AppCategory = 'editor' | 'terminal' | 'browser' | 'meeting' | 'unknown';
 
 export interface ActiveWindowInfo {
 	title: string;

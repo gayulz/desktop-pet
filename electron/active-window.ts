@@ -9,7 +9,7 @@
 
 import activeWindow from 'active-win';
 
-export type AppCategory = 'editor' | 'terminal' | 'browser' | 'unknown';
+export type AppCategory = 'editor' | 'terminal' | 'browser' | 'meeting' | 'unknown';
 
 export interface ActiveWindowInfo {
 	title: string;
@@ -47,9 +47,44 @@ const BROWSER_BUNDLES = [
 	'com.microsoft.edgemac',
 ];
 
-function categorize(bundleId: string, appName: string): AppCategory {
+// Dedicated video-conferencing apps. Matched by bundleId — these always count
+// as 'meeting' regardless of window title.
+const MEETING_BUNDLES = [
+	'us.zoom.xos',
+	'com.microsoft.teams2',
+	'com.microsoft.teams',
+	'com.cisco.webexmeetingsapp',
+	'com.skype.skype',
+	'com.hnc.Discord', // Discord voice/video
+	'com.tinyspeck.slackmacgap', // Slack huddles
+];
+
+// Title-based meeting detection — covers Google Meet / Zoom / Teams running
+// inside a browser tab, where bundleId would otherwise classify as 'browser'.
+// Lowercased before matching.
+const MEETING_TITLE_KEYWORDS = [
+	'zoom meeting',
+	'google meet',
+	'meet.google.com',
+	'microsoft teams',
+	'webex meeting',
+	'whereby',
+];
+
+function isMeetingByTitle(title: string): boolean {
+	if (!title) return false;
+	const lower = title.toLowerCase();
+	return MEETING_TITLE_KEYWORDS.some((k) => lower.includes(k));
+}
+
+function categorize(bundleId: string, appName: string, title: string): AppCategory {
 	const id = bundleId.toLowerCase();
 	const name = appName.toLowerCase();
+	// Meeting wins over generic browser/editor classification because the user
+	// is clearly in a call rather than browsing or coding.
+	for (const b of MEETING_BUNDLES) {
+		if (id.startsWith(b.toLowerCase())) return 'meeting';
+	}
 	for (const b of EDITOR_BUNDLES) {
 		if (id.startsWith(b.toLowerCase())) return 'editor';
 	}
@@ -57,11 +92,19 @@ function categorize(bundleId: string, appName: string): AppCategory {
 		if (id.startsWith(b.toLowerCase())) return 'terminal';
 	}
 	for (const b of BROWSER_BUNDLES) {
-		if (id.startsWith(b.toLowerCase())) return 'browser';
+		if (id.startsWith(b.toLowerCase())) {
+			// A browser tab can host a meeting (Google Meet, web Zoom, ...).
+			if (isMeetingByTitle(title)) return 'meeting';
+			return 'browser';
+		}
+	}
+	if (name.includes('zoom') || name.includes('teams') || name.includes('webex')) {
+		return 'meeting';
 	}
 	if (name.includes('code') || name.includes('editor')) return 'editor';
 	if (name.includes('terminal') || name.includes('iterm')) return 'terminal';
 	if (name.includes('chrome') || name.includes('safari') || name.includes('firefox')) {
+		if (isMeetingByTitle(title)) return 'meeting';
 		return 'browser';
 	}
 	return 'unknown';
@@ -108,7 +151,7 @@ async function sample(): Promise<ActiveWindowInfo> {
 	const bundleId = ('bundleId' in owner ? (owner as { bundleId?: string }).bundleId : '') || '';
 	const appName = owner.name || '';
 	const title = win.title || '';
-	return { title, appName, bundleId, category: categorize(bundleId, appName) };
+	return { title, appName, bundleId, category: categorize(bundleId, appName, title) };
 }
 
 export type ActiveWindowListener = (info: ActiveWindowInfo) => void;

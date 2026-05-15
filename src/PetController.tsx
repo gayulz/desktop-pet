@@ -8,6 +8,7 @@ import StudyingSprite from './sprites/StudyingSprite';
 import CelebratingSprite from './sprites/CelebratingSprite';
 import AiModeSprite from './sprites/AiModeSprite';
 import NoticeSprite from './sprites/NoticeSprite';
+import MeetingSprite from './sprites/MeetingSprite';
 import SpeechBubble from './components/SpeechBubble';
 import {
 	deriveState,
@@ -226,6 +227,8 @@ const PetController = () => {
 				return <AiModeSprite />;
 			case 'notice':
 				return <NoticeSprite />;
+			case 'meeting':
+				return <MeetingSprite />;
 		}
 	};
 
