@@ -18,11 +18,12 @@ export interface AppSettings {
 
 const DEFAULTS: AppSettings = {
 	studyKeywords: ['인프런', 'inflearn', '강의', '학습', '공부'],
-	// active-win triggers a macOS accessibility / screen recording dialog on
-	// every poll until the user explicitly grants permission. We default it OFF
-	// so first-run users aren't bombarded — they can turn it on later from the
-	// settings window if they want coding / studying auto-detection.
-	enableActiveWindow: false,
+	// Default ON after migrating to get-windows (ROADMAP P0 옵션 1).
+	// get-windows respects accessibilityPermission/screenRecordingPermission:false
+	// so the noisy per-poll dialog from active-win 8.x is gone. Existing users
+	// who saved enableActiveWindow=false will keep their preference because
+	// mergeWithDefaults respects the persisted value.
+	enableActiveWindow: true,
 	enableClaudeWatch: true,
 	enableGitWatch: true,
 };
