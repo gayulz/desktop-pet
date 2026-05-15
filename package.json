@@ -13,7 +13,11 @@
     "build:renderer": "tsc && vite build",
     "build:electron": "tsc -p electron/tsconfig.json",
     "build": "npm run build:renderer && npm run build:electron && electron-builder",
-    "build:mac": "npm run build:renderer && npm run build:electron && electron-builder --mac"
+    "build:mac": "npm run build:renderer && npm run build:electron && electron-builder --mac",
+    "release:mac": "bash scripts/release-mac.sh",
+    "version:patch": "npm version patch -m \"chore(release): %s\"",
+    "version:minor": "npm version minor -m \"chore(release): %s\"",
+    "version:major": "npm version major -m \"chore(release): %s\""
   },
   "dependencies": {
     "chokidar": "^3.6.0",
