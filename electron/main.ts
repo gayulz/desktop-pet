@@ -36,6 +36,10 @@ const trayState: TrayState = {
 let settingsWindow: BrowserWindow | null = null;
 
 const PET_SIZE = 220;
+// Window is wider than Codi's sprite area so the speech bubble has room to
+// sit at Codi's top-right without spawning a second BrowserWindow. The extra
+// columns are transparent when no bubble is showing.
+const WINDOW_WIDTH = 360;
 // Walk range: 60% of screen width, centered horizontally.
 // 20% margin on each side keeps Codi out of the screen edges.
 const WALK_MARGIN_RATIO = 0.2;
@@ -46,11 +50,14 @@ const ACTIVE_WINDOW_INTERVAL_MS = 2000;
 function createPetWindow() {
 	const { width: sw, height: sh } = screen.getPrimaryDisplay().workAreaSize;
 
+	// Center Codi's sprite area on screen. Window left = (sw - petSize) / 2
+	// places the leftmost petSize columns of the window centered, which keeps
+	// behavior identical to the pre-bubble layout.
 	const startX = Math.round((sw - PET_SIZE) / 2);
 	const startY = sh - PET_SIZE - BOTTOM_OFFSET;
 
 	petWindow = new BrowserWindow({
-		width: PET_SIZE,
+		width: WINDOW_WIDTH,
 		height: PET_SIZE,
 		x: startX,
 		y: startY,

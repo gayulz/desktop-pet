@@ -8,6 +8,7 @@ import StudyingSprite from './sprites/StudyingSprite';
 import CelebratingSprite from './sprites/CelebratingSprite';
 import AiModeSprite from './sprites/AiModeSprite';
 import NoticeSprite from './sprites/NoticeSprite';
+import SpeechBubble from './components/SpeechBubble';
 import {
 	deriveState,
 	CELEBRATE_DURATION_MS,
@@ -27,6 +28,8 @@ const PetController = () => {
 	const [state, setState] = useState<PetState>('walking');
 	const [codingActive, setCodingActive] = useState(false);
 	const [aiModeActive, setAiModeActive] = useState(false);
+	const [noticeTitle, setNoticeTitle] = useState<string | undefined>(undefined);
+	const [noticeBody, setNoticeBody] = useState<string | undefined>(undefined);
 
 	const cpuLoadRef = useRef(0);
 	const systemIdleRef = useRef(0);
@@ -80,8 +83,15 @@ const PetController = () => {
 			// metrics tick.
 			setTimeout(recompute, CELEBRATE_DURATION_MS + 50);
 		});
-		const offNotify = window.electronAPI.onNotify(() => {
+		const offNotify = window.electronAPI.onNotify((payload) => {
 			noticeActiveRef.current = true;
+			// Surface the title/body so the speech bubble can render them.
+			// Only set when present so an empty notify doesn't clear an
+			// existing bubble (the previous one stays until dismissed).
+			if (payload.title || payload.body) {
+				setNoticeTitle(payload.title);
+				setNoticeBody(payload.body);
+			}
 			recompute();
 		});
 		const offAi = window.electronAPI.onAiActivity((timestampMs) => {
@@ -157,6 +167,8 @@ const PetController = () => {
 	const dismissNotice = () => {
 		if (!noticeActiveRef.current) return false;
 		noticeActiveRef.current = false;
+		setNoticeTitle(undefined);
+		setNoticeBody(undefined);
 		recomputeNow();
 		return true;
 	};
@@ -217,6 +229,9 @@ const PetController = () => {
 		}
 	};
 
+	const showBubble =
+		state === 'notice' && (Boolean(noticeTitle) || Boolean(noticeBody));
+
 	return (
 		<div
 			onMouseDown={handleMouseDown}
@@ -224,13 +239,37 @@ const PetController = () => {
 			style={{
 				width: '100%',
 				height: '100%',
-				display: 'flex',
-				alignItems: 'center',
-				justifyContent: 'center',
+				position: 'relative',
 				cursor: 'grab',
 			}}
 		>
-			{renderSprite()}
+			{/*
+			  Codi occupies the leftmost 220px column of the (now wider) window
+			  so the right-side columns stay free for the speech bubble. The
+			  walking math in useWindowMotion still uses petSize=220 as the
+			  Codi-area width, which keeps Codi visually centered on screen.
+			*/}
+			<div
+				style={{
+					position: 'absolute',
+					left: 0,
+					top: 0,
+					width: 220,
+					height: 220,
+					display: 'flex',
+					alignItems: 'center',
+					justifyContent: 'center',
+				}}
+			>
+				{renderSprite()}
+			</div>
+			{showBubble ? (
+				<SpeechBubble
+					title={noticeTitle}
+					body={noticeBody}
+					onDismiss={dismissNotice}
+				/>
+			) : null}
 		</div>
 	);
 };
