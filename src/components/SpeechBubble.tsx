@@ -14,12 +14,15 @@ interface Props {
 	onDismiss: () => void;
 }
 
+// Window 360x220, Codi sprite occupies the left 220px column. Codi's right
+// edge sits around x=174 (window left). Anchor the bubble just to the right
+// of Codi (left=178) and lift it so the tail points at Codi's upper face.
 const wrapperStyle: CSSProperties = {
 	position: 'absolute',
-	top: 8,
-	right: 8,
-	width: 138,
-	maxHeight: 130,
+	left: 178,
+	top: 30,
+	width: 170,
+	maxHeight: 150,
 	background: 'rgba(255, 255, 255, 0.96)',
 	color: '#1f2937',
 	borderRadius: 10,
