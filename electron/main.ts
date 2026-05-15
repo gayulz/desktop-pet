@@ -159,8 +159,17 @@ function startClaude() {
 			petWindow.webContents.send('pet:ai-activity', timestampMs);
 		}
 	};
+	// Claude end_turn → speech bubble notice (no title/body yet because we
+	// don't tag every turn with a human-readable summary). The renderer just
+	// switches Codi into the notice sprite; the user can click to dismiss.
+	const sendClaudeNotify = () => {
+		if (petWindow && !petWindow.isDestroyed()) {
+			const payload: NotifyPayload = { source: 'claude' };
+			petWindow.webContents.send('pet:notify', payload);
+		}
+	};
 	stopClaudeWatcher = startClaudeWatcher({
-		onNotify: () => {},
+		onNotify: sendClaudeNotify,
 		onActivity: sendAiActivity,
 	});
 }
