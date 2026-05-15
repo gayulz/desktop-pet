@@ -14,6 +14,7 @@
     "build:electron": "tsc -p electron/tsconfig.json",
     "build": "npm run build:renderer && npm run build:electron && electron-builder",
     "build:mac": "npm run build:renderer && npm run build:electron && electron-builder --mac",
+    "verify:claude-jsonl": "node scripts/verify-claude-jsonl.cjs",
     "release:mac": "bash scripts/release-mac.sh",
     "version:patch": "npm version patch -m \"chore(release): %s\"",
     "version:minor": "npm version minor -m \"chore(release): %s\"",
