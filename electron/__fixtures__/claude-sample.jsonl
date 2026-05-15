@@ -1,0 +1,8 @@
+{"type":"user","timestamp":"2026-05-15T01:00:00.000Z","message":{"role":"user","content":[{"type":"text","text":"안녕"}]}}
+{"type":"assistant","timestamp":"2026-05-15T01:00:01.000Z","isSidechain":false,"message":{"role":"assistant","content":[{"type":"text","text":"부분 응답 1"}]}}
+{"type":"assistant","timestamp":"2026-05-15T01:00:02.000Z","isSidechain":false,"message":{"role":"assistant","content":[{"type":"text","text":"부분 응답 2"}]}}
+{"type":"assistant","timestamp":"2026-05-15T01:00:03.000Z","isSidechain":false,"message":{"role":"assistant","content":[{"type":"text","text":"끝났다"}],"stop_reason":"end_turn"}}
+this is not json at all
+{"type":"assistant","timestamp":"2026-05-15T01:00:04.000Z","isSidechain":false,"message":{"role":"assistant","content":[{"type":"tool_use","name":"Bash"}],"stop_reason":"tool_use"}}
+{"type":"user","timestamp":"2026-05-15T01:00:05.000Z","message":{"role":"user","content":[{"type":"tool_result","tool_use_id":"abc","content":"done"}]}}
+{"type":"queue-operation","operation":"enqueue","timestamp":"2026-05-15T01:00:06.000Z"}
